@@ -302,7 +302,7 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="purple", neutral_hue="slate"), 
                 preset = gr.Radio(PRESETS, value=PRESETS[0], label="", interactive=True)
         with gr.Row():
             with gr.Column(scale=5):
-                chat = gr.Chatbot(height=520, show_copy_button=True, likeable=False, layout="bubble")
+                chat = gr.Chatbot(type="tuples", height=520, show_copy_button=True, layout="bubble")
                 with gr.Row():
                     msg = gr.Textbox(placeholder="Ask anything grounded in your local Canon…", label="")
                     btn = gr.Button("Ask", variant="primary")
