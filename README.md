@@ -14,7 +14,7 @@ pip install -r requirements.txt
 ### 3) Env (shell profile or export per session)
 export LOTUS_CHROMA_DIR="$HOME/lotus-canon/chroma" \
 export LOTUS_CHROMA_COLLECTION="lotus_canon" \
-export LOTUS_EMBED_MODEL="nomic-embed-text" \
+export LOTUS_EMBED_MODEL="nomic-embed-text" 
 
 ### 4) (Optional) Build / rebuild index
 python3 index_canon.py ./data
