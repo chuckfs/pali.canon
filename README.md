@@ -1,6 +1,6 @@
-#CLI: pali "your query"
+# CLI: pali "your query"
 
-##1) Install & set up
+## 1) Install & set up
 
 ### Clone with Git LFS
 git lfs install
@@ -15,13 +15,13 @@ pip install -r requirements.txt
 ### (Optional) Build / rebuild the index
 python3 index_canon.py ./data
 
-##2) Add the CLI to your PATH (so pali works everywhere)
+## 2) Add the CLI to your PATH (so pali works everywhere)
 
 ### macOS / zsh
 echo 'export PATH="$HOME/lotus-canon/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 
-##3) Environment defaults (override anytime)
+## 3) Environment defaults (override anytime)
 
 ### These are the defaults the CLI will use if not set:
 export LOTUS_CHROMA_DIR="$HOME/lotus-canon/chroma"
@@ -30,7 +30,7 @@ export LOTUS_EMBED_MODEL="nomic-embed-text"
 
 Tip: Add those to ~/.zshrc so they persist.
 
-##4) Run it
+## 4) Run it
 
 pali "Give a 1-page beginner lesson on Satipaṭṭhāna with a *Key passage* (≤120 words) and FULL Canon citations."
 
@@ -39,7 +39,7 @@ To silence the banner for scripts: LOTUS_NO_BANNER=1 pali "...".
 
 ⸻
 
-##Alternative (no PATH change): shell function
+## Alternative (no PATH change): shell function
 
 pali() {
   local PROJECT="$HOME/lotus-canon"
@@ -55,7 +55,7 @@ pali() {
   python3 "$PROJECT/query_canon.py" "$@"
 }
 
-##Then:
+## Then:
 
 source ~/.zshrc
 pali "tell me about the Dhammapada"
@@ -63,7 +63,7 @@ pali "tell me about the Dhammapada"
 
 ⸻
 
-##Troubleshooting
+## Troubleshooting
 	•	“command not found: pali”
 Ensure either bin/ is on PATH (see step 2) or the shell function is in ~/.zshrc and you ran source ~/.zshrc.
 	•	No sources / empty results
