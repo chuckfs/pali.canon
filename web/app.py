@@ -1,6 +1,5 @@
 # web/app.py
-import gradio as gr
-import os, time
+import os, time, gradio as gr
 from langchain_ollama import OllamaEmbeddings, OllamaLLM
 from langchain_chroma import Chroma
 from langchain.prompts import PromptTemplate
@@ -13,56 +12,40 @@ COLLECTION  = os.environ.get("LOTUS_CHROMA_COLLECTION", "lotus_canon")
 EMBED_MODEL = os.environ.get("LOTUS_EMBED_MODEL", "nomic-embed-text")
 DEFAULT_LLM = os.environ.get("LOTUS_LLM_MODEL", "mistral")
 
-# basic retrieval
 def build_db():
     emb = OllamaEmbeddings(model=EMBED_MODEL)
     return Chroma(embedding_function=emb, persist_directory=PERSIST_DIR, collection_name=COLLECTION)
 
 PROMPT = PromptTemplate.from_template(
-    "You are a calm Theravāda teacher. Use only the provided context.\n\nQuestion:\n{question}\n\nContext:\n{context}"
+    "You are a calm Theravāda teacher. Use only the provided context.\n\n"
+    "Question:\n{question}\n\nContext:\n{context}"
 )
 
-def ask(question):
+def ask(question: str) -> str:
     t0 = time.time()
     db = build_db()
-    retriever = db.as_retriever(search_type="mmr", search_kwargs={"k":12, "fetch_k":50})
+    retriever = db.as_retriever(search_type="mmr", search_kwargs={"k": 12, "fetch_k": 50})
     docs = retriever.invoke(question)
     llm = OllamaLLM(model=DEFAULT_LLM, temperature=0.5)
     chain = create_stuff_documents_chain(llm, PROMPT)
     ans = chain.invoke({"question": question, "context": docs})
-    elapsed = f"⏱ {time.time()-t0:.2f}s"
-    return f"{ans}\n\n---\n{elapsed}"
+    return f"{ans}\n\n— ⏱ {time.time()-t0:.2f}s"
 
-# ---------- minimal clean UI ----------
 CSS = """
-:root {
-  color-scheme: light dark;
-}
-body {
-  background-color: Canvas;
-  color: CanvasText;
-  font-family: system-ui, -apple-system, 'Inter', sans-serif;
-}
-h1 {
-  text-align: center;
-  font-weight: 700;
-  font-size: 2rem;
-  margin-bottom: 1rem;
-}
-#chatbox {
-  max-width: 720px;
-  margin: 0 auto;
-}
+:root { color-scheme: light dark; }
+body { background: Canvas; color: CanvasText; font-family: system-ui, -apple-system, 'Inter', sans-serif; }
+.container { max-width: 820px; margin: 36px auto; }
+h1 { text-align:center; margin: 0 0 16px; font-size: 28px; font-weight: 700; }
 """
 
 with gr.Blocks(css=CSS, title="PaLi-CANON") as demo:
-    gr.Markdown("<h1>PaLi-CANON</h1>")
+    gr.Markdown("<div class='container'><h1>PaLi-CANON</h1></div>")
     chat = gr.ChatInterface(
-        fn=lambda message, history: (ask(message), history),
-        chatbot=gr.Chatbot(height=500, bubble_full_width=False),
-        placeholder="Ask a question about the Pāli Canon...",
+        fn=lambda message, history: ask(message),              # return just the assistant string
+        chatbot=gr.Chatbot(type="messages", height=520),       # messages API (no deprecation)
+        textbox=gr.Textbox(placeholder="Ask about the Pāli Canon…", lines=1),
         submit_btn="Ask",
-        stop_btn="Stop"
+        stop_btn="Stop",
     )
 
 if __name__ == "__main__":
