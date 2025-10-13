@@ -64,7 +64,7 @@ pali "tell me about the Dhammapada"
 ⸻
 
 ## Troubleshooting
-	•	“command not found: pali”
+   •	“command not found: pali”
 Ensure either bin/ is on PATH (see step 2) or the shell function is in ~/.zshrc and you ran source ~/.zshrc. \
 	•	No sources / empty results \
 Check env vars: \
