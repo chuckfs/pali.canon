@@ -103,23 +103,7 @@ def export_last(history):
         f.write(content)
     return gr.File.update(value=path, visible=True)
 
-# ----------------- UI -----------------
-CSS = """
-:root { --accent:#6d28d9; }
-#wrap { max-width: 1100px; margin: 0 auto; }
-.brand { display:flex; align-items:center; gap:.75rem; }
-.brand img { width:34px; height:34px; border-radius:10px; }
-.hero { display:flex; justify-content:space-between; align-items:center; }
-.badge { font-size:.85rem; padding:.25rem .5rem; border:1px solid #9993; border-radius:8px; }
-.sidebar .gr-group { border:1px solid #9993; border-radius:12px; padding:10px; }
-.cards { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:10px; margin-top:.5rem;}
-.card { border:1px solid #e5e7eb; border-radius:12px; padding:.6rem .7rem; background: var(--panel-background-fill); }
-.card-title { font-weight:600; font-size:.95rem; }
-.card-meta { font-size:.85rem; opacity:.75; margin-top:.2rem; }
-.tag { display:inline-block; margin-left:.35rem; padding:.05rem .35rem; font-size:.75rem; border-radius:6px; background:#eef; color:#334; }
-.latency { font-size:.8rem; opacity:.65; margin-top:.25rem; }
-"""
-
+# ----------------- PRESETS -----------------
 PRESETS = [
     "Give a 1-page beginner lesson on Satipaṭṭhāna with a *Key passage* (≤120 words) and FULL Canon citations.",
     "Outline the Noble Eightfold Path with short practice prompts and citations (DN/MN/SN/AN/KN only).",
@@ -127,6 +111,179 @@ PRESETS = [
     "Explain Dependent Origination (paṭiccasamuppāda) with 3 key suttas and brief quotes."
 ]
 
+# ----------------- THEME / CSS (use the ornate version) -----------------
+CSS = """
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Merriweather:ital,wght@0,400;0,700;1,700&display=swap');
+:root {
+  --accent: #8E44AD;
+  --gold: #FFD700;
+  --brand-bg: linear-gradient(90deg, #c7b6ff 0%, #fbeee6 100%);
+  --panel-background-fill: #fcfcff;
+  --card-shadow: 0 2px 16px 0 rgba(140,100,255,0.10);
+  --border-radius: 16px;
+  --font-main: "Inter", sans-serif;
+  --font-title: "Merriweather", serif;
+}
+
+body, #wrap {
+  font-family: var(--font-main);
+  background: #f6f3fa;
+  margin: 0;
+}
+
+#wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: var(--border-radius);
+  box-shadow: 0 4px 32px 0 rgba(140,100,255,0.09);
+  padding: 2.5rem 2.5rem 2rem 2.5rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 1.15rem;
+  background: var(--brand-bg);
+  border-radius: var(--border-radius);
+  padding: 1.2rem 1.6rem;
+  box-shadow: 0 2px 12px 0 rgba(140,100,255,0.09);
+}
+
+.brand img {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px 0 #d6c3ff88;
+}
+
+.brand h1 {
+  font-family: var(--font-title);
+  font-size: 2.1rem;
+  letter-spacing: -1px;
+  color: #301862;
+  margin-bottom: .15rem;
+}
+
+.brand .subtitle {
+  font-size: 1rem;
+  font-family: var(--font-main);
+  color: #6d28d9;
+  margin-top: -0.35rem;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.badge {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: #f9f6ff;
+  padding: .4rem .9rem;
+  border-radius: 8px;
+  border: 1px solid #ece4fb;
+  box-shadow: 0 1px 4px 0 #e6e0ff38;
+}
+
+.sidebar .gr-group {
+  border: 1px solid #ece4fb;
+  border-radius: var(--border-radius);
+  padding: 16px;
+  background: #f8f7fc;
+  box-shadow: 0 2px 8px 0 #eee6ff38;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: .8rem;
+}
+
+.card {
+  border: 1px solid #ece4fb;
+  border-radius: var(--border-radius);
+  padding: 1rem 1.1rem;
+  background: var(--panel-background-fill);
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.21s, transform 0.18s;
+}
+
+.card:hover {
+  box-shadow: 0 4px 24px 0 rgba(140,100,255,0.15);
+  transform: translateY(-2px) scale(1.03);
+}
+
+.card-title {
+  font-weight: 700;
+  font-size: 1.07rem;
+  color: #4f2d7f;
+}
+
+.card-meta {
+  font-size: .93rem;
+  opacity: .86;
+  margin-top: .18rem;
+  color: #6d28d9;
+}
+
+.tag {
+  display: inline-block;
+  margin-left: .35rem;
+  padding: .09rem .38rem;
+  font-size: .81rem;
+  border-radius: 8px;
+  background: var(--gold);
+  color: #334;
+  font-weight: 600;
+  box-shadow: 0 1px 4px #ffe0664a;
+}
+
+.latency {
+  font-size: .91rem;
+  opacity: .70;
+  margin-top: .31rem;
+  color: #8E44AD;
+}
+
+.gradio-row, .gradio-column {
+  margin-top: 1rem;
+}
+
+button, .gradio-button {
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+button:hover, .gradio-button:hover {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 12px 0 #8E44AD38;
+}
+
+input[type="text"], textarea, .gradio-textbox {
+  border-radius: 8px;
+  border: 1px solid #ece4fb;
+  padding: 0.6rem;
+  background: #f9f6ff;
+  font-size: 1.05rem;
+  color: #3d275c;
+}
+
+.gradio-markdown h1, .gradio-markdown h2 {
+  font-family: var(--font-title);
+}
+
+@media (max-width: 700px) {
+  #wrap { padding: 1rem; }
+  .brand { flex-direction: column; gap: .8rem; }
+}
+"""
+
+# ----------------- UI -----------------
 with gr.Blocks(theme=gr.themes.Soft(primary_hue="purple", neutral_hue="slate"), css=CSS, title="PaLi-CANON") as demo:
     with gr.Column(elem_id="wrap"):
         with gr.Row(equal_height=True):
@@ -134,7 +291,8 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="purple", neutral_hue="slate"), 
                 gr.Markdown(
                     f"<div class='hero'><div class='brand'>"
                     f"<img src='https://em-content.zobj.net/source/apple/391/lotus_1faba.png'/>"
-                    f"<div><h1>PaLi-CANON</h1><div class='badge'>Model: {DEFAULT_LLM} · Embeddings: {EMBED_MODEL}</div></div>"
+                    f"<div><h1>PaLi-CANON</h1><div class='subtitle'>Pāli Canon Q&A Assistant</div>"
+                    f"<div class='badge'>Model: {DEFAULT_LLM} · Embeddings: {EMBED_MODEL}</div></div>"
                     f"</div></div>"
                 )
             with gr.Column(scale=3, min_width=280, elem_classes="sidebar"):
