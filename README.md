@@ -104,7 +104,3 @@ and verify that your index exists in $LOTUS_CHROMA_DIR.
 
 Virtual env not active
 → The wrapper auto-activates .venv if it exists in the project root.
-
-⸻
-
-Would you like me to generate a README banner + badges section (e.g., ![Built with Mistral](...) + tagline + installation badges) so the top of your GitHub page looks professional and unified with the Lotus style?
