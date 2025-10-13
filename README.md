@@ -65,10 +65,10 @@ pali "tell me about the Dhammapada"
 
 ## Troubleshooting
 	•	“command not found: pali”
-Ensure either bin/ is on PATH (see step 2) or the shell function is in ~/.zshrc and you ran source ~/.zshrc.
-	•	No sources / empty results
-Check env vars:
-echo $LOTUS_CHROMA_DIR $LOTUS_CHROMA_COLLECTION $LOTUS_EMBED_MODEL
-and that your index exists in $LOTUS_CHROMA_DIR.
-	•	Virtual env not active
-The wrapper auto-activates .venv if it exists in the repo root.
+Ensure either bin/ is on PATH (see step 2) or the shell function is in ~/.zshrc and you ran source ~/.zshrc. \
+	•	No sources / empty results \
+Check env vars: \
+echo $LOTUS_CHROMA_DIR $LOTUS_CHROMA_COLLECTION $LOTUS_EMBED_MODEL \
+and that your index exists in $LOTUS_CHROMA_DIR. \
+	•	Virtual env not active \
+The wrapper auto-activates .venv if it exists in the repo root. \
