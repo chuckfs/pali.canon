@@ -19,3 +19,8 @@ chroma/
 /data/index/
 index/
 vector_store/
+# secrets
+archive/credentials.json
+archive/token.pkl
+*.pkl
+*.json
