@@ -1,0 +1,21 @@
+# Python / build
+.venv/
+__pycache__/
+*.pyc
+dist/
+build/
+.cache/
+*.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# Local vector DBs / indexes / caches
+chroma/
+*.sqlite3
+*.bin
+*.npy
+*.npz
+/data/index/
+index/
+vector_store/
