@@ -1,0 +1,12 @@
+.git
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.env
+.DS_Store
+data/chroma/
+**/chroma/**
+node_modules/
+venv/
+.venv/
