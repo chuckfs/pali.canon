@@ -16,7 +16,7 @@ ENV PALI_PROJECT_ROOT=/app \
     LOTUS_EMBED_MODEL=nomic-embed-text \
     LOTUS_LLM_MODEL=mistral \
     LOTUS_CHROMA_DIR=/var/chroma \
-    OLLAMA_URL=https://YOUR-TUNNEL.trycloudflare.com  # replace in Railway
+    OLLAMA_URL=pali-https://canon-production.up.railway.app
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 EXPOSE 7860
