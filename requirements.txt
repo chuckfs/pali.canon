@@ -1,0 +1,6 @@
+requests
+chromadb
+gradio
+langchain
+langchain_ollama
+langchain_chroma
