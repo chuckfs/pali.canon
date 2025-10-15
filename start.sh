@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# start ollama in background
-ollama serve &
-# wait for it to come up
-for i in {1..60}; do
-  if curl -s http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
-  echo "waiting for ollama..."; sleep 1
-done
+# Ensure Chroma dir exists (use a Railway Volume mounted at /var/chroma)
+mkdir -p "${LOTUS_CHROMA_DIR:-/var/chroma}"
 
-# pull models you use
-ollama pull nomic-embed-text
-ollama pull mistral
+echo "PALI_PROJECT_ROOT=${PALI_PROJECT_ROOT:-/app}"
+echo "LOTUS_CHROMA_DIR=${LOTUS_CHROMA_DIR:-/var/chroma}"
+echo "OLLAMA_URL=${OLLAMA_URL:-<unset>} (must point to a running Ollama server)"
 
-# ensure Chroma dir exists (Railway volume mount recommended)
-export LOTUS_CHROMA_DIR="${LOTUS_CHROMA_DIR:-/var/chroma}"
-mkdir -p "$LOTUS_CHROMA_DIR"
+# Optional: simple reachability check for remote Ollama
+if [ -n "${OLLAMA_URL:-}" ]; then
+  echo "Checking OLLAMA_URL..."
+  curl -sSf "${OLLAMA_URL}/api/tags" >/dev/null || \
+    echo "WARN: Could not reach OLLAMA_URL (${OLLAMA_URL}). The app may start but model calls will fail."
+fi
 
-# launch your app (Gradio)
+# Start your app (Gradio, FastAPI, etc.)
 python web/app.py
