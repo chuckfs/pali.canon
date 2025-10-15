@@ -1,6 +1,8 @@
 gradio
 chromadb
+langchain
 langchain-chroma
 langchain-ollama
 requests
-uvicorn
+uvicorn[standard]
+fastapi
