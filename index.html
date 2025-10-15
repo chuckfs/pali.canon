@@ -1,44 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PaLi-CANON - Buddhist Wisdom Companion</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/feather-icons"></script>
-    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              parchment: '#F5F0E5',
-              saffron: '#FF9933',
-              dhamma: '#5D4037',
-              mindful: '#8D6E63',
-            }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PaLi-CANON - Buddhist Wisdom Companion</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons@4.29.2/dist/feather.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            parchment: '#F5F0E5',
+            saffron: '#FF9933',
+            dhamma: '#5D4037',
+            mindful: '#8D6E63'
           }
         }
       }
-    </script>
-    <style>
-      .scroll-hidden::-webkit-scrollbar {
-        display: none;
-      }
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .fade-in {
-        animation: fadeIn 0.5s ease-out forwards;
-      }
-      .lotus-bg {
-        background-image: radial-gradient(circle, rgba(245,240,229,0.8) 0%, rgba(245,240,229,1) 70%);
-      }
-    </style>
+    }
+  </script>
+  <style>
+    .scroll-hidden::-webkit-scrollbar { display: none; }
+    .scroll-hidden { scrollbar-width: none; -ms-overflow-style: none; }
+    @keyframes fadeIn { from {opacity:0; transform:translateY(10px)} to {opacity:1; transform:none} }
+    .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+    .lotus-bg { background-image: radial-gradient(circle, rgba(245,240,229,0.8) 0%, rgba(245,240,229,1) 70%); }
+  </style>
 </head>
+
 <body class="bg-parchment min-h-screen font-serif">
   <div class="lotus-bg min-h-screen flex flex-col">
+
     <!-- Header -->
     <header class="sticky top-0 z-10 bg-dhamma text-parchment shadow-md">
       <div class="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -59,19 +52,31 @@
 
     <!-- Main Content -->
     <main class="flex-1 container mx-auto px-4 py-8 flex flex-col items-center">
+
       <!-- Hero Section -->
       <section class="w-full max-w-4xl text-center mb-12">
         <div class="bg-white/80 backdrop-blur-sm rounded-xl p-8 shadow-lg border border-mindful/10">
           <i data-feather="compass" class="w-16 h-16 mx-auto text-saffron mb-4"></i>
           <h2 class="text-3xl md:text-4xl font-bold text-dhamma mb-4">The Path Made Clear</h2>
-          <p class="text-mindful text-lg mb-6">A digital companion for exploring the Pāli Canon with clarity and contemplation</p>
+          <p class="text-mindful text-lg mb-6">
+            A digital companion for exploring the Pāli Canon with clarity and contemplation.
+          </p>
+
           <div class="relative max-w-xl mx-auto">
-            <input type="text" placeholder="Ask about dukkha, anicca, or the Eightfold Path..." 
-                   class="w-full py-3 px-6 pr-12 rounded-full border border-mindful/20 focus:outline-none focus:ring-2 focus:ring-saffron/50 text-dhamma placeholder-mindful/50">
-            <button class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-saffron text-parchment p-2 rounded-full hover:bg-saffron/90 transition">
+            <input id="askInput" type="text"
+              placeholder="Ask about dukkha, anicca, or the Eightfold Path..."
+              class="w-full py-3 px-6 pr-12 rounded-full border border-mindful/20 focus:outline-none focus:ring-2 focus:ring-saffron/50 text-dhamma placeholder-mindful/50" />
+            <button id="askButton" aria-label="Send query"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-saffron text-parchment p-2 rounded-full hover:bg-saffron/90 transition">
               <i data-feather="arrow-right"></i>
             </button>
           </div>
+
+          <div id="answerOutput" class="mt-6 text-mindful text-lg font-light italic"></div>
+
+          <!-- Optional link to full Gradio app -->
+          <a href="https://pali-canon-production.up.railway.app" target="_blank"
+             class="inline-block mt-4 text-saffron underline">Open Live App ↗</a>
         </div>
       </section>
 
@@ -79,8 +84,8 @@
       <section class="w-full max-w-6xl mb-12">
         <h3 class="text-2xl font-semibold text-dhamma mb-6 text-center">Wisdom at Your Fingertips</h3>
         <div class="grid md:grid-cols-3 gap-6">
-          <!-- Feature 1 -->
-          <div class="bg-white rounded-xl p-6 shadow-md border border-mindful/10 fade-in" style="animation-delay: 0.1s">
+
+          <div class="bg-white rounded-xl p-6 shadow-md border border-mindful/10 fade-in">
             <div class="bg-parchment w-12 h-12 rounded-full flex items-center justify-center mb-4 text-saffron">
               <i data-feather="search"></i>
             </div>
@@ -88,8 +93,7 @@
             <p class="text-mindful">Direct quotes from the Pāli Canon with precise citations from the Nikāyas.</p>
           </div>
 
-          <!-- Feature 2 -->
-          <div class="bg-white rounded-xl p-6 shadow-md border border-mindful/10 fade-in" style="animation-delay: 0.2s">
+          <div class="bg-white rounded-xl p-6 shadow-md border border-mindful/10 fade-in">
             <div class="bg-parchment w-12 h-12 rounded-full flex items-center justify-center mb-4 text-saffron">
               <i data-feather="book"></i>
             </div>
@@ -97,8 +101,7 @@
             <p class="text-mindful">Connects teachings across different suttas for comprehensive understanding.</p>
           </div>
 
-          <!-- Feature 3 -->
-          <div class="bg-white rounded-xl p-6 shadow-md border border-mindful/10 fade-in" style="animation-delay: 0.3s">
+          <div class="bg-white rounded-xl p-6 shadow-md border border-mindful/10 fade-in">
             <div class="bg-parchment w-12 h-12 rounded-full flex items-center justify-center mb-4 text-saffron">
               <i data-feather="heart"></i>
             </div>
@@ -116,14 +119,12 @@
             <span>Sample Dhamma Dialogue</span>
           </div>
           <div class="p-6 space-y-4 h-96 overflow-y-auto scroll-hidden">
-            <!-- Message 1 -->
             <div class="flex justify-start">
               <div class="max-w-xs md:max-w-md bg-parchment rounded-lg p-4 shadow">
                 <p class="text-mindful">What is the meaning of anicca?</p>
               </div>
             </div>
-            
-            <!-- Message 2 -->
+
             <div class="flex justify-end">
               <div class="max-w-xs md:max-w-md bg-saffron/10 rounded-lg p-4 shadow border border-saffron/20">
                 <p class="text-dhamma mb-2">"All conditioned things are impermanent" — this is the teaching on anicca (impermanence) found in the Dhammapada (277).</p>
@@ -131,18 +132,16 @@
               </div>
             </div>
 
-            <!-- Message 3 -->
             <div class="flex justify-start">
               <div class="max-w-xs md:max-w-md bg-parchment rounded-lg p-4 shadow">
                 <p class="text-mindful">How does this relate to suffering?</p>
               </div>
             </div>
-            
-            <!-- Message 4 -->
+
             <div class="flex justify-end">
               <div class="max-w-xs md:max-w-md bg-saffron/10 rounded-lg p-4 shadow border border-saffron/20">
                 <p class="text-dhamma mb-2">In the Anicca Sutta (SN 22.15), the Buddha explains that whatever is impermanent is unsatisfactory (dukkha). Clinging to impermanent things leads to suffering.</p>
-                <p class="text-dhamma mt-2">Understanding anicca helps us develop non-attachment, the path to liberation.</p>
+                <p class="text-dhamma mt-2">Understanding anicca helps us develop non-attachment — the path to liberation.</p>
                 <div class="text-xs text-mindful mt-2 italic">SN 22.15</div>
               </div>
             </div>
@@ -177,21 +176,42 @@
 
   <script>
     feather.replace();
-    
-    // Simple fade-in animation for elements
-    document.addEventListener('DOMContentLoaded', () => {
-      const fadeElements = document.querySelectorAll('.fade-in');
-      fadeElements.forEach((el, index) => {
-        el.style.opacity = '0';
-      });
-      
-      setTimeout(() => {
-        fadeElements.forEach((el, index) => {
-          el.style.animationDelay = `${index * 0.1}s`;
-          el.classList.add('fade-in');
+
+    const API_URL = "https://pali-canon-production.up.railway.app/ask";
+    const askInput = document.getElementById("askInput");
+    const askButton = document.getElementById("askButton");
+    const answerOutput = document.getElementById("answerOutput");
+
+    // Fade-in animation for elements
+    document.querySelectorAll('.fade-in').forEach(el => el.style.opacity = '0');
+    setTimeout(() => document.querySelectorAll('.fade-in').forEach((el,i) => {
+      el.style.animationDelay = `${i * 0.1}s`;
+      el.classList.add('fade-in');
+    }), 300);
+
+    async function send() {
+      const q = askInput.value.trim();
+      if (!q) return;
+      answerOutput.textContent = "Thinking…";
+      askInput.disabled = true; askButton.disabled = true;
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: q })
         });
-      }, 300);
-    });
+        const data = await res.json().catch(() => ({}));
+        answerOutput.textContent = data.answer || "No answer returned.";
+      } catch (e) {
+        answerOutput.textContent = "Error contacting backend.";
+      } finally {
+        askInput.disabled = false; askButton.disabled = false;
+      }
+    }
+
+    askButton.addEventListener("click", send);
+    askInput.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
   </script>
 </body>
 </html>
