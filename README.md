@@ -1,4 +1,4 @@
-# pali . canon (chuckfs)
+# pali.canon (chuckfs)
 
 Canon-grounded Q&A over the Theravāda Pāli Canon with page-level citations.
 Pipeline: G-RAG-G — planner → retriever → synthesizer — using Mistral via Ollama and Chroma for embeddings.
