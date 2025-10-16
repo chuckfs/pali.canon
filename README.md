@@ -84,13 +84,7 @@ Host	Hugging Face Spaces + GitHub
 
 ⸻
 
-## 📜 License
-
-MIT — see LICENSE.
-
-⸻
-
 ## 🌸 Credits
 
-Lotus Canon • by @chuckfs
+PaLi Canon • by @chuckfs
 Pāli Canon RAG system — built with Mistral, Chroma, and reverence.
