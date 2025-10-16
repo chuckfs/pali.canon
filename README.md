@@ -5,7 +5,6 @@ Pipeline: G-RAG-G — planner → retriever → synthesizer — using Mistral vi
 
 ⚠️ All PDFs are stored with Git LFS. Make sure LFS is installed before cloning/pulling.
 
-⸻
 
 ## Features
 - OCR-first indexing (index_canon_ocr.py) so every page is searchable (cached under ocr_cache/).
@@ -15,7 +14,6 @@ Pipeline: G-RAG-G — planner → retriever → synthesizer — using Mistral vi
 - Grounded synthesis: neutral, concise answers that cite files + pages; guardrails to avoid naming suttas not in context.
 - CLI and Gradio app UI.
 
-⸻
 
 ## Repo layout
 
@@ -35,7 +33,6 @@ PaLi-CANON/
 └─ LICENSE                        # Apache-2.0
 
 
-⸻
 
 ## Quickstart
 
@@ -86,7 +83,6 @@ python index_canon_ocr.py
 
 #### (If your PDFs already have perfect text layers, you can use index_canon.py instead.)
 
-⸻
 
 ## Using It
 
@@ -107,7 +103,6 @@ python web/app.py
 ##### → open http://127.0.0.1:7860
 
 
-⸻
 
 ## Aliases (titles, nicknames, Pāli variants)
 
@@ -132,7 +127,6 @@ python make_manifest.py
 
 
 
-⸻
 
 ## How it works (short)
 1.	Planner (planner.py)
@@ -148,7 +142,6 @@ python make_manifest.py
 	•	Mistral (Ollama) composes a neutral answer grounded in the snippets.
 	•	Won’t name/number suttas unless seen in the context; appends Sources + a confidence score.
 
-⸻
 
 ## Configuration knobs
 - TOP_K — top chunks to pass downstream (default 8)
@@ -163,7 +156,6 @@ export RAG_MIN_NEEDED=3
 export ALIAS_FUZZY_THRESHOLD=88
 
 
-⸻
 
 ## Troubleshooting
 - No aliases resolving? Ensure LOTUS_ALIAS_CSV/YAML points to a real file.
@@ -172,7 +164,6 @@ export ALIAS_FUZZY_THRESHOLD=88
 - Ollama not found? Start it: ollama serve (in another terminal).
 - Large pulls fail? Ensure Git LFS is installed: git lfs install.
 
-⸻
 
 ## Roadmap
 - Better KN sub-collection targeting (Dhp/Thag/Thig/Khp routing).
@@ -180,13 +171,11 @@ export ALIAS_FUZZY_THRESHOLD=88
 - Optional server mode with embeddings hosted remotely.
 - Eval suite for retrieval quality.
 
-⸻
 
 ## License
 
 This project is licensed under the Apache-2.0 license — see LICENSE.
 
-⸻
 
 ## Acknowledgments
 - Community translators and editors of the Pāli Canon.
