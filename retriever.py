@@ -1,159 +1,146 @@
-# retriever.py — LOCAL embeddings via Ollama, robust filters + fallback + canon-first
-from __future__ import annotations
-from typing import Dict, Any, List, Optional
-import os, requests, chromadb
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Retriever: Two-phase vector search (filtered → fallback) + hybrid ranking (vector + BM25),
+plus a gentle, generic re-rank using planner targets/aliases.
 
-# --- config ---
-CHROMA_PATH = os.path.expanduser(os.getenv("CHROMA_PATH", "~/lotus-canon/chroma"))
-COLLECTION  = os.getenv("CHROMA_COLLECTION", "lotus_canon")
+Env:
+  RAG_MIN_NEEDED   -> int, if Phase A yields < this many, do Phase B (default 4)
+  TOP_K            -> default top_k (fallback if CLI/GUI not provided)
+"""
+from __future__ import annotations
+from typing import Dict, Any, List, Optional, Tuple
+import os, json
+
+from langchain_chroma import Chroma
+from langchain_ollama import OllamaEmbeddings
+
+# Optional BM25 (pip install rank_bm25)
+try:
+    from rank_bm25 import BM25Okapi
+except Exception:
+    BM25Okapi = None
+
+PERSIST_DIR = os.getenv("LOTUS_CHROMA_DIR", os.path.expanduser("~/PaLi-CANON/chroma"))
+COLLECTION  = os.getenv("LOTUS_CHROMA_COLLECTION", "pali_canon")
+EMBED_MODEL = os.getenv("LOTUS_EMBED_MODEL", "nomic-embed-text")
 TOP_K       = int(os.getenv("TOP_K", "8"))
 DEBUG       = os.getenv("DEBUG_RAG", "0") == "1"
+MIN_NEEDED  = int(os.getenv("RAG_MIN_NEEDED", "4"))
 
-# Ollama embeddings must match your indexer (you used nomic-embed-text, 768d)
-OLLAMA_URL  = os.getenv("OLLAMA_URL", "http://localhost:11434")
-EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")  # e.g., "nomic-embed-text"
+ENV_BASKET  = (os.getenv("RAG_BASKET") or "").strip().lower()
 
-# --- client/collection (NO embedding_function; we pass query_embeddings) ---
-client = chromadb.PersistentClient(path=CHROMA_PATH)
-col    = client.get_collection(name=COLLECTION)
+NIKAYA_MAP = {
+    "DN": "digha_nikaya",
+    "MN": "majjhima_nikaya",
+    "SN": "samyutta_nikaya",
+    "AN": "anguttara_nikaya",
+    "KN": "khuddaka_nikaya",
+}
+BASKET_MAP = {
+    "sutta": "sutta_pitaka",
+    "vinaya": "vinaya_pitaka",
+    "abhidhamma": "abhidhamma_pitaka",
+}
 
 def _dbg(*a):
     if DEBUG:
         print("[retriever]", *a)
 
-def _ollama_embed(texts: List[str]) -> List[List[float]]:
-    """Get embeddings from local Ollama (same model used at index time)."""
-    vecs: List[List[float]] = []
-    for t in texts:
-        r = requests.post(
-            f"{OLLAMA_URL}/api/embeddings",
-            json={"model": EMBED_MODEL, "prompt": t},
-            timeout=120,
-        )
-        r.raise_for_status()
-        data = r.json()
-        v = data.get("embedding") or data.get("embeddings") or data.get("vector")
-        if v is None:
-            raise RuntimeError(f"Ollama embeddings returned no vector for: {t[:80]}...")
-        vecs.append(v)
-    return vecs
+def _build_db() -> Chroma:
+    emb = OllamaEmbeddings(model=EMBED_MODEL)
+    return Chroma(collection_name=COLLECTION, persist_directory=PERSIST_DIR, embedding_function=emb)
 
-def _score_hits(h: Dict[str, Any], canonical_targets: List[str]) -> int:
-    """Lightweight rank boost for exact/canonical matches in metadata."""
-    m = h.get("meta", {}) or {}
-    # Be liberal with keys people commonly store
-    ref = " ".join(str(m.get(k, "")) for k in (
-        "ref","nikaya","Nikaya","collection","book","number","sutta","sutta_no"
-    )).lower()
-    bonus = 0
-    for ct in canonical_targets or []:
-        ct_l = (ct or "").lower()
-        if not ct_l:
-            continue
-        # match collection (SN/DN/etc.)
-        if ct_l.split()[0] in ref:
-            bonus += 5
-        # boost numeric matches like 35.28
-        for token in ct_l.split():
-            if any(c.isdigit() for c in token) and token in ref:
-                bonus += 10
-    return bonus
+def _filter_from_plan(plan: Dict[str, Any]) -> Dict[str, Any]:
+    clauses: List[Dict[str, Any]] = [{"tier": {"$eq": "canon"}}]
+    constraints = plan.get("constraints") or {}
+    nikaya_code = (constraints.get("nikaya") or "").strip().upper() or None
+    basket_key  = (constraints.get("basket") or "").strip().lower() or None
 
-def _make_filters(constraints: Dict[str, Any]) -> List[Optional[Dict[str, Any]]]:
-    """
-    Build a list of candidate 'where' filters. We’ll try them in order,
-    then fall back to None if nothing hits.
-    """
-    if not constraints:
-        return [None]
-    out: List[Optional[Dict[str, Any]]] = []
-    # If planner set nikaya=SN, try a few possible metadata keys
-    target = constraints.get("nikaya")
-    if target:
-        for key in ("nikaya","Nikaya","collection","Collection","book","Book"):
-            out.append({key: {"$eq": target}})
-    # Always include a no-filter fallback at the end
-    out.append(None)
-    return out or [None]
+    if ENV_BASKET:
+        basket_key = ENV_BASKET
+    if nikaya_code in NIKAYA_MAP and not basket_key:
+        basket_key = "sutta"
 
-def _query_once(q: str, where: Optional[Dict[str, Any]], k: int) -> Dict[str, Any]:
-    if where:
-        _dbg(f'query="{q}" with filter {where}')
-        return col.query(query_embeddings=_ollama_embed([q]), n_results=k, where=where)
-    _dbg(f'query="{q}" with NO filter')
-    return col.query(query_embeddings=_ollama_embed([q]), n_results=k)
+    if basket_key in BASKET_MAP:
+        clauses.append({"basket": {"$eq": BASKET_MAP[basket_key]}})
+    if nikaya_code in NIKAYA_MAP:
+        clauses.append({"nikaya": {"$in": [NIKAYA_MAP[nikaya_code]]}})
+
+    filt = clauses[0] if len(clauses) == 1 else {"$and": clauses}
+    _dbg("filter:", json.dumps(filt, ensure_ascii=False))
+    return filt
+
+def _bm25_scores(query: str, docs: List[Dict[str, Any]], k: int = 8) -> List[Tuple[int, float]]:
+    if not BM25Okapi or not docs:
+        return []
+    corpus = [d["text"].split() for d in docs]
+    bm = BM25Okapi(corpus)
+    scores = bm.get_scores(query.split())
+    ranked = sorted(list(enumerate(scores)), key=lambda x: x[1], reverse=True)[:k]
+    return ranked
+
+def _to_hits(results: List[Tuple[Any, float]], k: int) -> List[Dict[str, Any]]:
+    hits: List[Dict[str, Any]] = []
+    for doc, score in results:
+        meta = dict(doc.metadata or {})
+        page = meta.get("page", None)
+        rel  = meta.get("relpath", meta.get("source", meta.get("filename", "")))
+        hits.append({
+            "text": doc.page_content,
+            "score": float(score),
+            "meta": {**meta, "citation": f"{rel}" + (f" p.{page+1}" if isinstance(page, int) else "")},
+        })
+    hits.sort(key=lambda h: h["score"], reverse=True)
+    return hits[:k]
 
 def retrieve(plan: Dict[str, Any], top_k: Optional[int] = None) -> List[Dict[str, Any]]:
     k = top_k or TOP_K
-    queries: List[str] = list(plan.get("search_terms", []) or [])
-    # Add canonical strings (e.g., "SN 35.28") as extra queries
-    for ct in plan.get("canonical_targets", []) or []:
-        if ct and ct not in queries:
-            queries.append(ct)
+    query = plan.get("query") or " ".join(plan.get("search_terms", [])) or ""
+    if not query:
+        raise ValueError("No query text available (plan.query / plan.search_terms empty).")
 
-    # Build ordered list of candidate filters; last entry is None (no filter)
-    filters = _make_filters(plan.get("constraints", {}) or {})
+    db = _build_db()
+    filt = _filter_from_plan(plan)
 
-    hits: List[Dict[str, Any]] = []
-    seen = set()
+    # Phase A: filtered vector (oversample)
+    vecA = db.similarity_search_with_relevance_scores(query, k=max(k, 10), filter=filt)
+    poolA = _to_hits(vecA, k=10*k)
 
-    # Try each query across the candidate filters until we gather some hits
-    for q in queries:
-        q = (q or "").strip()
-        if not q:
-            continue
-        got_any_for_q = False
-        for filt in filters:
-            try:
-                res = _query_once(q, filt, k)
-            except Exception as e:
-                _dbg(f"query error (ignored): {e}")
-                continue
+    # Phase B: broaden if needed (tier-only)
+    poolB: List[Dict[str, Any]] = []
+    if len(poolA) < MIN_NEEDED:
+        broad = {"tier": {"$eq": "canon"}}
+        vecB = db.similarity_search_with_relevance_scores(query, k=max(k, 10), filter=broad)
+        poolB = _to_hits(vecB, k=10*k)
 
-            docs = res.get("documents", [[]])[0]
-            if not docs:
-                # Try next filter (or fallback to no filter)
-                continue
+    pool = poolA + poolB
 
-            metas = res.get("metadatas", [[]])[0]
-            ids   = res.get("ids", [[]])[0]
-            for i, doc in enumerate(docs):
-                meta = metas[i] if i < len(metas) else {}
-                cid  = ids[i]   if i < len(ids)   else ""
-                key = (cid, meta.get("page"), meta.get("source"))
-                if key in seen:
-                    continue
-                seen.add(key)
-                hits.append({"id": cid, "text": doc, "meta": meta})
-            got_any_for_q = True
-            break  # stop cycling filters for this q once we got results
+    # Hybrid: small BM25 bump
+    bm = _bm25_scores(query, pool, k=5*k)
+    bm_boost = {idx: sc for idx, sc in bm}
+    if pool:
+        smax = max(h["score"] for h in pool) or 1.0
+    else:
+        smax = 1.0
+    for i, h in enumerate(pool):
+        base = h["score"] / smax
+        extra = bm_boost.get(i, 0.0)
+        h["hybrid_score"] = base + 0.1 * extra
 
-        if not got_any_for_q:
-            _dbg(f'no results for "{q}" under any filter')
+    # Gentle, generic rerank using canonical targets + alias terms
+    targets = [t.replace(" ", "").lower() for t in (plan.get("canonical_targets") or [])]
+    alias_terms = [t.strip().lower() for t in plan.get("search_terms", [])[:8]]
 
-    # Re-rank to push exact canonical refs up
-    ctargets = [t for t in (plan.get("canonical_targets") or [])]
-    hits.sort(key=lambda h: _score_hits(h, ctargets), reverse=True)
+    def _final_score(h):
+        s = h.get("hybrid_score", h["score"])
+        text_l = h["text"].lower()
+        meta_l = json.dumps(h.get("meta", {}), ensure_ascii=False).lower()
+        if any(t in text_l or t in meta_l for t in targets): s += 0.15
+        if any(a and a in text_l for a in alias_terms):      s += 0.05
+        return s
 
-    # Canon-first: if any meta clearly contains the target number (e.g., 35.28), surface them
-    canon_hits = []
-    other_hits = []
-    needle = None
-    for ct in ctargets:
-        for token in ct.split():
-            if any(c.isdigit() for c in token):
-                needle = token
-                break
-        if needle:
-            break
-    if needle:
-        for h in hits:
-            if needle in str(h.get("meta", {})).replace(" ", ""):
-                canon_hits.append(h)
-            else:
-                other_hits.append(h)
-        hits = canon_hits + other_hits
-
-    final = hits[:k]
-    _dbg(f"final hits: {len(final)}")
-    return final
+    pool.sort(key=_final_score, reverse=True)
+    out = pool[:k]
+    _dbg(f"final hits: {len(out)}")
+    return out

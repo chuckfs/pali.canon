@@ -1,8 +1,13 @@
+# Core
 requests
-chromadb
-gradio
-langchain
-langchain_ollama
-langchain_chroma
-langchain_community
 pypdf
+
+# Vector DB & retrieval
+chromadb
+langchain
+langchain-chroma
+langchain-community
+langchain-ollama
+
+# UI
+gradio
