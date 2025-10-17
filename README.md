@@ -148,12 +148,19 @@ python make_manifest.py
 - RAG_MIN_NEEDED — if Phase A returns fewer than this, broaden (default 4)
 - ALIAS_FUZZY_THRESHOLD — fuzzy match threshold (default 85)
 - RAG_BASKET — force basket (sutta|vinaya|abhidhamma) regardless of planner
+- LOTUS_USE_PLANNER_LLM — enable LLM-based query expansion in planner (default 0; set to 1 to enable)
+- LOTUS_USE_PLANNER_LLM_ON_NO_HITS — invoke LLM expansion in retriever when Phase A yields too few hits (default 0; set to 1 to enable)
+- LOTUS_LLM_REWRITE_CACHE — path to JSON cache file for LLM query expansions (default ~/PaLi-CANON/llm_rewrite_cache.json)
+- PLANNER_LLM_MIN_HITS — minimum hits threshold for triggering LLM expansion (default same as RAG_MIN_NEEDED)
+- PLANNER_LLM_MODEL — model to use for LLM query expansion (default same as LOTUS_LLM_MODEL)
 
 ### Set via env, e.g.:
 
 export TOP_K=10
 export RAG_MIN_NEEDED=3
 export ALIAS_FUZZY_THRESHOLD=88
+export LOTUS_USE_PLANNER_LLM=1
+export LOTUS_USE_PLANNER_LLM_ON_NO_HITS=1
 
 
 

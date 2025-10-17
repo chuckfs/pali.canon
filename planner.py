@@ -10,9 +10,15 @@ Planner: parse the user question into a plan with constraints and targets.
 - Seed search_terms with alias/ID expansions from your data, + diacritic-stripped user query.
 """
 from __future__ import annotations
-import re, unicodedata
+import re, unicodedata, os, json
+from pathlib import Path
 from typing import Dict, Any, List
 from alias_loader import load_aliases, fuzzy_ids, _strip_diacritics
+
+try:
+    from langchain_ollama import ChatOllama
+except Exception:
+    ChatOllama = None
 
 # Load aliases from external files (set LOTUS_ALIAS_CSV / LOTUS_ALIAS_YAML)
 ID_TO_ALIASES, ALIAS_TO_ID = load_aliases()
@@ -21,6 +27,101 @@ SUTTA_ID_RE = re.compile(
     r'\b(?:(DN|MN|SN|AN|KN|Sn|Khp|Dhp|Thag|Thig)\s*[-\s\.:]?\s*\d+(?:\.\d+)?)\b',
     re.IGNORECASE
 )
+
+# Environment toggles for optional LLM rewriter
+LOTUS_USE_PLANNER_LLM = os.getenv("LOTUS_USE_PLANNER_LLM", "0") == "1"
+PLANNER_LLM_MODEL = os.getenv("PLANNER_LLM_MODEL", os.getenv("LOTUS_LLM_MODEL", "mistral"))
+PLANNER_LLM_CACHE_PATH = os.getenv("LOTUS_LLM_REWRITE_CACHE", 
+                                    os.path.expanduser("~/PaLi-CANON/llm_rewrite_cache.json"))
+
+def _load_llm_cache() -> Dict[str, Dict[str, Any]]:
+    """Load LLM cache from JSON file."""
+    cache_path = Path(PLANNER_LLM_CACHE_PATH)
+    if cache_path.exists():
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def _save_llm_cache(cache: Dict[str, Dict[str, Any]]) -> None:
+    """Save LLM cache to JSON file."""
+    cache_path = Path(PLANNER_LLM_CACHE_PATH)
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+def _llm_expand_query(question: str) -> Dict[str, Any]:
+    """
+    Use LLM to expand query with canonical IDs and search terms.
+    Conservative behavior: if LOTUS_USE_PLANNER_LLM=0, immediately return {}.
+    
+    Returns dict with keys: search_terms (list), canonical_ids (list), nikaya (str), basket (str)
+    Falls back to {} on any error.
+    """
+    if not LOTUS_USE_PLANNER_LLM:
+        return {}
+    
+    if not ChatOllama:
+        return {}
+    
+    # Normalize question for cache key
+    cache_key = question.strip().lower()
+    
+    # Check cache
+    cache = _load_llm_cache()
+    if cache_key in cache:
+        return cache.get(cache_key, {})
+    
+    try:
+        # Create LLM with strict JSON-only prompt
+        llm = ChatOllama(model=PLANNER_LLM_MODEL, temperature=0)
+        
+        prompt = f"""You are a Pali Canon expert. Extract search information from this question.
+Return ONLY a JSON object (no other text) with these allowed keys:
+- "search_terms": list of search terms
+- "canonical_ids": list of canonical sutta IDs like "SN 35.28", "MN 22", "DN 31"
+- "nikaya": one of DN, MN, SN, AN, KN (or empty)
+- "basket": one of sutta, vinaya, abhidhamma (or empty)
+
+Question: {question}
+
+JSON:"""
+        
+        response = llm.invoke(prompt)
+        response_text = response.content if hasattr(response, 'content') else str(response)
+        
+        # Extract first JSON object from response
+        start = response_text.find('{')
+        end = response_text.rfind('}')
+        if start >= 0 and end > start:
+            json_str = response_text[start:end+1]
+            parsed = json.loads(json_str)
+            
+            # Enforce allowed keys
+            allowed_keys = {"search_terms", "canonical_ids", "nikaya", "basket"}
+            result = {k: v for k, v in parsed.items() if k in allowed_keys}
+            
+            # Validate types
+            if "search_terms" in result and not isinstance(result["search_terms"], list):
+                result["search_terms"] = [str(result["search_terms"])] if result["search_terms"] else []
+            if "canonical_ids" in result and not isinstance(result["canonical_ids"], list):
+                result["canonical_ids"] = [str(result["canonical_ids"])] if result["canonical_ids"] else []
+            
+            # Cache the result
+            cache[cache_key] = result
+            _save_llm_cache(cache)
+            
+            return result
+        
+    except Exception:
+        pass
+    
+    return {}
 
 def _norm_id(token: str) -> str:
     t = token.upper().replace(" ", "")

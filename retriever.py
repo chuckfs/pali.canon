@@ -21,12 +21,25 @@ try:
 except Exception:
     BM25Okapi = None
 
+# Optional planner LLM imports (with guarded try/except)
+try:
+    from planner import _llm_expand_query, ID_TO_ALIASES, ALIAS_TO_ID, fuzzy_ids
+except Exception:
+    _llm_expand_query = None
+    ID_TO_ALIASES = {}
+    ALIAS_TO_ID = {}
+    fuzzy_ids = None
+
 PERSIST_DIR = os.getenv("LOTUS_CHROMA_DIR", os.path.expanduser("~/PaLi-CANON/chroma"))
 COLLECTION  = os.getenv("LOTUS_CHROMA_COLLECTION", "pali_canon")
 EMBED_MODEL = os.getenv("LOTUS_EMBED_MODEL", "nomic-embed-text")
 TOP_K       = int(os.getenv("TOP_K", "8"))
 DEBUG       = os.getenv("DEBUG_RAG", "0") == "1"
 MIN_NEEDED  = int(os.getenv("RAG_MIN_NEEDED", "4"))
+
+# New toggles for LLM-based query expansion
+USE_PLANNER_LLM_ON_NO_HITS = os.getenv("LOTUS_USE_PLANNER_LLM_ON_NO_HITS", "0") == "1"
+PLANNER_LLM_MIN_HITS = int(os.getenv("PLANNER_LLM_MIN_HITS", str(MIN_NEEDED)))
 
 ENV_BASKET  = (os.getenv("RAG_BASKET") or "").strip().lower()
 
@@ -106,6 +119,64 @@ def retrieve(plan: Dict[str, Any], top_k: Optional[int] = None) -> List[Dict[str
     # Phase A: filtered vector (oversample)
     vecA = db.similarity_search_with_relevance_scores(query, k=max(k, 10), filter=filt)
     poolA = _to_hits(vecA, k=10*k)
+
+    # LLM expansion: if Phase A yields too few hits and plan has no canonical_targets
+    canonical_targets = plan.get("canonical_targets") or []
+    if (USE_PLANNER_LLM_ON_NO_HITS and 
+        _llm_expand_query is not None and 
+        len(poolA) < PLANNER_LLM_MIN_HITS and 
+        not canonical_targets):
+        
+        _dbg(f"Phase A yielded {len(poolA)} hits (< {PLANNER_LLM_MIN_HITS}), invoking LLM expansion...")
+        
+        # Call LLM with query or joined search terms
+        llm_query = plan.get("query") or " ".join(plan.get("search_terms", []))
+        llm_result = _llm_expand_query(llm_query)
+        
+        if llm_result:
+            _dbg(f"LLM returned: {llm_result}")
+            
+            # Validate canonical_ids against known IDs
+            validated_ids = []
+            llm_canonical_ids = llm_result.get("canonical_ids", [])
+            
+            for cid in llm_canonical_ids:
+                # Check if ID exists in ID_TO_ALIASES or can be fuzzily matched
+                if cid in ID_TO_ALIASES:
+                    validated_ids.append(cid)
+                    _dbg(f"  Validated ID (exact): {cid}")
+                elif fuzzy_ids is not None:
+                    # Try fuzzy match
+                    fuzzy_matches = fuzzy_ids(cid, ALIAS_TO_ID, top_n=1, threshold=90)
+                    if fuzzy_matches:
+                        validated_ids.append(fuzzy_matches[0])
+                        _dbg(f"  Validated ID (fuzzy): {cid} -> {fuzzy_matches[0]}")
+                    else:
+                        _dbg(f"  Rejected unknown ID: {cid}")
+                else:
+                    _dbg(f"  Rejected unknown ID: {cid}")
+            
+            # Merge validated IDs and search terms into plan
+            if validated_ids:
+                plan["canonical_targets"] = validated_ids
+                _dbg(f"  Added canonical_targets: {validated_ids}")
+            
+            llm_search_terms = llm_result.get("search_terms", [])
+            if llm_search_terms:
+                existing_terms = plan.get("search_terms", [])
+                for term in llm_search_terms:
+                    if term not in existing_terms:
+                        existing_terms.append(term)
+                plan["search_terms"] = existing_terms
+                _dbg(f"  Added search_terms: {llm_search_terms}")
+            
+            # Rebuild filter and retry Phase A once if we got validated IDs
+            if validated_ids:
+                filt = _filter_from_plan(plan)
+                _dbg(f"Retrying Phase A with expanded plan...")
+                vecA = db.similarity_search_with_relevance_scores(query, k=max(k, 10), filter=filt)
+                poolA = _to_hits(vecA, k=10*k)
+                _dbg(f"After LLM expansion, Phase A yielded {len(poolA)} hits")
 
     # Phase B: broaden if needed (tier-only)
     poolB: List[Dict[str, Any]] = []
