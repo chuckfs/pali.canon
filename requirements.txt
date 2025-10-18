@@ -1,6 +1,7 @@
 # Core
 requests
 pypdf
+python-dotenv
 
 # Vector DB & retrieval
 chromadb
@@ -11,3 +12,7 @@ langchain-ollama
 
 # UI
 gradio
+
+# OCR + PDF text extraction + fuzzy aliases (lightweight)
+pymupdf
+rapidfuzz

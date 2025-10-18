@@ -1,106 +1,66 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Planner: parse the user question into a plan with constraints and targets.
+# planner.py
+import os, re, csv
+from typing import Dict, List, Optional
+from rapidfuzz import fuzz, process
+from config import ALIAS
 
-- Extract IDs like 'SN 35.28', 'MN22', 'DN-31' (normalized to 'SN 35.28', 'MN 22', etc.).
-- Load data-driven aliases from CSV/YAML + fuzzy match (see alias_loader.py).
-- Infer Nikāya from IDs (SN/MN/DN/AN; Sn/Khp/Dhp/Thag/Thig → KN umbrella).
-- Gentle basket inference (vinaya/abhidhamma/“sutta” words).
-- Seed search_terms with alias/ID expansions from your data, + diacritic-stripped user query.
-"""
-from __future__ import annotations
-import re, unicodedata
-from typing import Dict, Any, List
-from alias_loader import load_aliases, fuzzy_ids, _strip_diacritics
+ID_RE = re.compile(r"\b([DMAS]N)\s*[- ]?\s*(\d{1,3})(?:[\. ]\s*(\d{1,3}))?\b", re.I)
 
-# Load aliases from external files (set LOTUS_ALIAS_CSV / LOTUS_ALIAS_YAML)
-ID_TO_ALIASES, ALIAS_TO_ID = load_aliases()
+def _load_aliases(path: str) -> Dict[str, str]:
+    table = {}
+    if not path or not os.path.exists(path):
+        return table
+    with open(path, newline='', encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            cid = row.get("canonical_id", "").strip()
+            alias = row.get("alias", "").strip()
+            if cid and alias:
+                table[alias.lower()] = cid
+    return table
 
-SUTTA_ID_RE = re.compile(
-    r'\b(?:(DN|MN|SN|AN|KN|Sn|Khp|Dhp|Thag|Thig)\s*[-\s\.:]?\s*\d+(?:\.\d+)?)\b',
-    re.IGNORECASE
-)
+ALIASES = _load_aliases(ALIAS)
+ALIAS_KEYS = list(ALIASES.keys())
 
-def _norm_id(token: str) -> str:
-    t = token.upper().replace(" ", "")
-    t = t.replace(":", ".").replace("-", "")
-    code = t[:2]
-    rest = t[2:]
-    if rest and rest[0].isdigit():
-        rest = " " + rest
-    return f"{code}{rest}"
+def _extract_ids(q: str) -> List[str]:
+    out = []
+    for m in ID_RE.finditer(q):
+        nik = m.group(1).upper()
+        a = m.group(2)
+        b = m.group(3)
+        cid = f"{nik} {a}.{b}" if b else f"{nik} {a}"
+        out.append(cid)
+    return list(dict.fromkeys(out))
 
-def _scan_ids(q: str) -> List[str]:
-    seen, out = set(), []
-    for m in SUTTA_ID_RE.finditer(q):
-        nid = _norm_id(m.group(0))
-        if nid not in seen:
-            out.append(nid); seen.add(nid)
-    return out
+def _basket_hint(q: str) -> Optional[str]:
+    ql = q.lower()
+    if "vinaya" in ql: return "vinaya"
+    if "abhidhamma" in ql or "abhi" in ql: return "abhidhamma"
+    return "sutta" if any(w in ql for w in ["sutta","sutta nipāta","khp","dhp","thig","thag"]) else None
 
-def plan_query(q: str) -> Dict[str, Any]:
-    q_stripped = (q or "").strip()
-    plan: Dict[str, Any] = {
-        "original": q_stripped,
-        "query": q_stripped,
-        "search_terms": [],
-        "constraints": {},
-        "canonical_targets": [],
-        "require_citations": True,
+def _alias_targets(q: str) -> List[str]:
+    if not ALIAS_KEYS:
+        return []
+    # try to map short nicknames like "fire sermon" → "SN 35.28"
+    matches = process.extract(q.lower(), ALIAS_KEYS, scorer=fuzz.WRatio, limit=5)
+    targets = []
+    for alias, score, _ in matches:
+        if score >= 85:
+            targets.append(ALIASES[alias])
+    return list(dict.fromkeys(targets))
+
+def plan(query: str) -> dict:
+    targets = _extract_ids(query)
+    targets += [t for t in _alias_targets(query) if t not in targets]
+    bhint = _basket_hint(query)
+    # query_terms feed retriever directly
+    query_terms = [query]
+    if targets: query_terms += targets
+    return {
+        "targets": targets,
+        "basket_hint": bhint,
+        "query_terms": list(dict.fromkeys(query_terms))
     }
 
-    # 1) Direct IDs
-    ids = _scan_ids(q_stripped)
-
-    # 2) Aliases (exact + fuzzy) from external data
-    alias_ids = []
-    # exact / normalized lookups
-    q_lc = q_stripped.lower()
-    q_plain = _strip_diacritics(q_lc)
-    for key, cid in ALIAS_TO_ID.items():
-        if key in q_lc or key in q_plain:
-            if cid not in alias_ids:
-                alias_ids.append(cid)
-    # fuzzy (threshold can be tuned via ALIAS_FUZZY_THRESHOLD)
-    from os import getenv
-    fuzzy_thresh = int(getenv("ALIAS_FUZZY_THRESHOLD", "85"))
-    for cid in fuzzy_ids(q_stripped, ALIAS_TO_ID, top_n=3, threshold=fuzzy_thresh):
-        if cid not in alias_ids:
-            alias_ids.append(cid)
-
-    for cid in alias_ids:
-        if cid not in ids:
-            ids.append(cid)
-
-    if ids:
-        plan["canonical_targets"] = ids
-        head = ids[0]
-        code = head.split()[0]  # e.g. "SN", "MN", "DN", "AN", "Sn", "Khp", "Dhp", "Thag", "Thig"
-        # Khuddaka umbrella
-        if code in {"Sn", "Khp", "Dhp", "Thag", "Thig"}:
-            plan["constraints"]["nikaya"] = "KN"
-        elif code in {"SN","MN","DN","AN","KN"}:
-            plan["constraints"]["nikaya"] = code
-        elif code.lower() in {"sn","mn","dn","an","kn"}:
-            plan["constraints"]["nikaya"] = code.upper()
-
-    # 3) Basket inference (gentle)
-    if "vinaya" in q_lc:
-        plan["constraints"]["basket"] = "vinaya"
-    elif any(x in q_lc for x in ["abhidhamma", "paṭṭhāna", "patthana", "dhammasaṅgaṇī", "dhammasangani"]):
-        plan["constraints"]["basket"] = "abhidhamma"
-    elif any(x in q_lc for x in ["sutta", "sūtta", "sermon", "discourse"]):
-        plan["constraints"].setdefault("basket", "sutta")
-
-    # 4) Seed search terms: user text (+plain) + all aliases we know for detected IDs
-    seeds = [q_stripped]
-    if q_plain != q_lc:
-        seeds.append(_strip_diacritics(q_stripped))
-    for sid in ids:
-        for a in ID_TO_ALIASES.get(sid, []):
-            if a not in seeds:
-                seeds.append(a)
-    plan["search_terms"] = seeds
-
-    return plan
+if __name__ == "__main__":
+    import sys, json
+    print(json.dumps(plan("What is the Fire Sermon (Ādittapariyāya)? SN 35.28"), indent=2))
