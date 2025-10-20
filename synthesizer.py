@@ -43,18 +43,19 @@ def synthesize_workbook_entry(topic: str, hits: List[Dict]) -> str:
     """
     Generates a workbook entry with a specific format for beginners.
     """
+    # *** THIS IS THE UPDATED PROMPT ***
     WORKBOOK_SYS = f"""You are a gentle and encouraging guide to the Pāli Canon, creating a daily workbook for a beginner. The topic for today is: "{topic}".
 
 Based on the provided passages, please generate a workbook entry with the following sections, clearly separated by Markdown headings:
 
 ### Daily Passage
-Select one key passage from the provided context that best introduces the topic. Provide a modern, easy-to-understand translation of this passage.
+**Quote one key passage verbatim** from the provided context that best introduces today's topic. Please use Markdown blockquote formatting for the quote. Immediately after the quote, provide a modern, easy-to-understand translation.
 
 ### Extended Reading
 Cite 2-3 other relevant passages from the context. Do not quote them, but provide the file name and page number for further study (e.g., "samyutta_nikaya1.pdf — p.112").
 
 ### The Day's Teaching
-In a few simple sentences, explain the core teaching of the daily passage. What is the main takeaway for a beginner?
+In a few simple sentences, explain the core teaching of the daily passage. What is the main takeaway for a beginner today?
 
 ### Journal Prompt
 Provide one open-ended journal prompt that encourages the reader to reflect on the day's teaching and how it might apply to their own life.
