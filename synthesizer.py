@@ -3,18 +3,20 @@ from typing import List, Dict
 from langchain_ollama import OllamaLLM
 from config import LLM
 
-# This is the new, more conversational system prompt
+# Updated system prompt to specify the new citation format
 SYS = """You are a wise and compassionate scholar of the Pāli Canon. Your goal is to not just answer questions, but to provide insightful, reflective, and thought-provoking responses based on the provided passages.
 - Freely quote from the text to illustrate your points.
 - Connect concepts and ideas from different passages to offer a deeper understanding.
 - Where appropriate, you can ask reflective questions to encourage the user to think more deeply.
-- Always cite your sources at the end of your response in the format: 'filename.pdf — p.<page>'.
+- Always cite your sources at the end of your response in the format: 'folder/filename.pdf — p.<page>'.
 - If the passages don't contain a clear answer, you can say so, but you can also offer some general wisdom from the Canon that might be related to the user's query."""
 
 def _format_context(hits: List[Dict]) -> str:
     lines = []
     for i, h in enumerate(hits, 1):
-        header = f"[{i}] {h['pdf_name']} p.{h['page']}"
+        # Use relpath if available, fall back to pdf_name
+        path = h.get("relpath") or h.get("pdf_name")
+        header = f"[{i}] {path} p.{h['page']}"
         body = h["text"].strip().replace("\n", " ")
         lines.append(f"{header}\n{body}")
     return "\n\n".join(lines)
@@ -23,10 +25,12 @@ def _format_sources(hits: List[Dict]) -> str:
     uniq = []
     seen = set()
     for h in hits:
-        sig = (h["pdf_name"], h["page"])
+        # Use relpath if available, fall back to pdf_name
+        path = h.get("relpath") or h.get("pdf_name")
+        sig = (path, h["page"])
         if sig not in seen:
             seen.add(sig)
-            uniq.append(f"{h['pdf_name']} — p.{h['page']}")
+            uniq.append(f"{path} — p.{h['page']}")
     return "Sources:\n" + "\n".join(f"- {s}" for s in uniq)
 
 def synthesize(query: str, hits: List[Dict]) -> str:
@@ -52,13 +56,13 @@ Based on the provided passages, please generate a workbook entry with the follow
 **Quote one key passage verbatim** from the provided context that best introduces today's topic. Please use Markdown blockquote formatting for the quote. Immediately after the quote, provide a modern, easy-to-understand translation.
 
 ### Extended Reading
-Cite 2-3 other relevant passages from the context. Do not quote them, but provide the file name and page number for further study (e.g., "samyutta_nikaya1.pdf — p.112").
+Cite 2-3 other relevant passages from the context. Do not quote them, but provide the **full file path and page number** for further study (e.g., "sutta_pitaka/samyutta_nikaya1.pdf — p.112").
 
 ### The Day's Teaching
 In a few simple sentences, explain the core teaching of the daily passage. What is the main takeaway for a beginner today?
 
 ### Journal Prompt
-Provide one open-ended journal prompt that encourages the reader to reflect on the day's teaching and how it might apply to their own life.
+Provide one open-ended journal prompt that encourages the reader to reflect on today's teaching and how it might apply to their own life.
 """
 
     llm = OllamaLLM(model=LLM)
