@@ -63,12 +63,15 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
     docs_sorted = [d for _, d in scored]
     docs_dedup = _dedupe_by_translation(docs_sorted)[:k]
 
+    # *** THIS IS THE UPDATED SECTION ***
+    # Now includes 'relpath' for full path citations
     return [
         {
             "text": d.page_content,
             "pdf_name": d.metadata.get("pdf_name"),
             "page": d.metadata.get("page"),
             "span_id": d.metadata.get("span_id"),
+            "relpath": d.metadata.get("relpath"), # <-- ADDED THIS LINE
             "score": 0.0,
         }
         for d in docs_dedup
