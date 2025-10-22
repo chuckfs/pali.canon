@@ -1,6 +1,7 @@
 # generate_full_workbook.py
 import os
 import re
+import time
 from planner import plan
 from retriever import retrieve
 from synthesizer import synthesize_workbook_entry
@@ -535,24 +536,27 @@ def get_daily_entry(topic: str):
 
 def make_safe_filename(topic, day_num_str):
     """Creates a clean filename from the topic string."""
-    # Remove special characters
     safe_topic = re.sub(r'[^a-zA-Z0-9 \-]', '', topic).strip()
-    # Replace spaces with underscores
     safe_topic = re.sub(r'\s+', '_', safe_topic)
-    # Truncate to avoid overly long filenames
     safe_topic = safe_topic[:50]
     return f"Day_{day_num_str}-{safe_topic}.md"
 
-# 3. This is the main generator function
+# 3. This is the main generator function (NOW MORE VERBOSE)
 def generate_full_workbook():
     """
     Loops through the entire curriculum and saves each day as a separate file.
     """
     output_dir = "My_Pali_Workbook"
     os.makedirs(output_dir, exist_ok=True)
-    print(f"Starting workbook generation... Outputting to ./{output_dir}/")
     
+    print("="*70)
+    print(f"🪷 STARTING FULL WORKBOOK GENERATION 🪷")
+    print(f"Output directory: ./{output_dir}/")
+    print("="*70)
+    
+    start_time = time.time()
     day_counter = 1
+    total_files_created = 0
 
     for month_str, weeks in CURRICULUM.items():
         month_num = int(month_str.split(' ')[1])
@@ -566,14 +570,16 @@ def generate_full_workbook():
             
             for day_str, topic in days.items():
                 day_num = int(day_str.split(' ')[1])
+                day_num_str = str(day_counter).zfill(3) # Pads with zeros, e.g., 001, 002...
                 
-                print(f"Generating: Month {month_num}, Week {week_num}, Day {day_num} - {topic}")
+                # --- VERBOSE PRINT START ---
+                print(f"\nProcessing Day {day_num_str} (M:{month_num} W:{week_num} D:{day_num})")
+                print(f"  Topic: {topic}")
                 
                 # Generate the content
                 content = get_daily_entry(topic)
                 
                 # Create a clean filename
-                day_num_str = str(day_counter).zfill(3) # Pads with zeros, e.g., 001, 002...
                 filename = make_safe_filename(topic, day_num_str)
                 filepath = os.path.join(week_dir, filename)
                 
@@ -583,12 +589,27 @@ def generate_full_workbook():
                         f.write(f"# {month_str} - {week_str} - {day_str}\n")
                         f.write(f"## {topic}\n\n")
                         f.write(content)
+                    
+                    # --- VERBOSE PRINT DONE ---
+                    print(f"  [SUCCESS] Day {day_num_str} done. Saved to {filepath}")
+                    total_files_created += 1
+                    
                 except Exception as e:
-                    print(f"  [!] FAILED to write file {filepath}: {e}")
+                    print(f"  [ERROR] FAILED to write file for Day {day_num_str}: {e}")
                 
                 day_counter += 1
 
-    print(f"\n✅ Generation complete! {day_counter - 1} daily files created in ./{output_dir}/")
+    end_time = time.time()
+    total_time = end_time - start_time
+    
+    # --- VERBOSE PRINT FINISHED ---
+    print("\n" + "="*70)
+    print(f"✅ WORKBOOK GENERATION COMPLETE! ✅")
+    print("="*70)
+    print(f"  Total files created: {total_files_created} / 365")
+    print(f"  Total time taken: {total_time:.2f} seconds")
+    print(f"  All files are located in the '{output_dir}' folder.")
+    print("="*70)
 
 # 4. This makes the script runnable from the command line
 if __name__ == "__main__":
