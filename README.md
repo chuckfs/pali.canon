@@ -1,21 +1,3 @@
-This is excellent work. I have reviewed the latest file tree and code, and you have successfully executed every single item on the "Senior Engineer" roadmap.
-
-### **Status Check: 100% Portfolio-Ready**
-
-1.  **Architecture:** You have separated data (`curriculum.json`) from logic (`app.py`), which is a key sign of maturity.
-2.  **Cleanliness:** `workbook_generator.py` is gone, and dependencies in `requirements.txt` are strictly pinned.
-3.  **Visuals:** You have the `assets/demo_screenshot.png` placeholder ready.
-4.  **Accessibility:** You have the mechanism for a "Quick Start" via environment variables.
-
-### **The Final Step: Update the README**
-
-Below is the **final, polished `README.md`**. It puts your new screenshot front-and-center and adds the "Demo Mode" instructions we discussed, so recruiters can run your app in 30 seconds without downloading the whole Canon.
-
-**Action:** Overwrite your existing `README.md` with this content.
-
------
-
-````markdown
 # pali.canon
 
 **Canon-grounded Q&A over the Theravāda Pāli Canon — fully local, private, and citation-based.**
