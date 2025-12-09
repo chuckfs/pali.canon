@@ -12,6 +12,7 @@ build/
 
 # Local vector DBs / indexes / caches
 chroma/
+data/ocr_cache/
 *.sqlite3
 *.bin
 *.npy
@@ -19,6 +20,7 @@ chroma/
 /data/index/
 index/
 vector_store/
+
 # secrets
 archive/credentials.json
 archive/token.pkl
