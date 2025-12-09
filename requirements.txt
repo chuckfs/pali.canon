@@ -1,0 +1,18 @@
+# Core utilities
+requests
+pypdf
+python-dotenv
+
+# Vector database & retrieval
+chromadb
+langchain
+langchain-chroma
+langchain-community
+langchain-ollama
+
+# UI
+gradio
+
+# OCR / PDF extraction + fuzzy matching
+pymupdf
+rapidfuzz
