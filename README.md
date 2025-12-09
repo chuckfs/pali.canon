@@ -129,7 +129,7 @@ You can override defaults by setting environment variables or creating a `.env` 
 
 ## 📜 License
 
-Apache-2.0 — see [LICENSE](https://www.google.com/search?q=LICENSE)
+Apache-2.0
 
 -----
 
