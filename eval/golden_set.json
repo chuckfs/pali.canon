@@ -1,0 +1,102 @@
+[
+  {
+    "id": 1,
+    "question": "What is the Fire Sermon about?",
+    "expected_refs": ["SN 35.28"],
+    "expected_pdfs": ["samyutta_nikaya4.pdf"],
+    "expected_keywords": ["burning", "fire", "passion", "aversion", "delusion", "sense bases"],
+    "ground_truth_summary": "The Buddha declares that all sense bases are burning with the fires of passion, aversion, and delusion. Disenchantment leads to liberation.",
+    "difficulty": "easy",
+    "category": "sutta_lookup"
+  },
+  {
+    "id": 2,
+    "question": "What is the Simile of the Saw?",
+    "expected_refs": ["MN 21"],
+    "expected_pdfs": ["majjhima_nikaya1.pdf"],
+    "expected_keywords": ["saw", "patience", "loving-kindness", "bandits", "hate"],
+    "ground_truth_summary": "Even if bandits were to saw off one's limbs, one who gave rise to hate would not be following the Buddha's teaching. One should maintain loving-kindness.",
+    "difficulty": "easy",
+    "category": "sutta_lookup"
+  },
+  {
+    "id": 3,
+    "question": "What are the Four Noble Truths?",
+    "expected_refs": ["SN 56.11"],
+    "expected_pdfs": ["samyutta_nikaya5.pdf"],
+    "expected_keywords": ["dukkha", "suffering", "origin", "cessation", "path", "noble truths"],
+    "ground_truth_summary": "The truth of suffering, the truth of the origin of suffering (craving), the truth of the cessation of suffering, and the truth of the path leading to cessation (the Eightfold Path).",
+    "difficulty": "easy",
+    "category": "concept"
+  },
+  {
+    "id": 4,
+    "question": "What are the five aggregates?",
+    "expected_refs": ["SN 22.59"],
+    "expected_pdfs": ["samyutta_nikaya3.pdf"],
+    "expected_keywords": ["form", "feeling", "perception", "formations", "consciousness", "khandha", "aggregates"],
+    "ground_truth_summary": "Form (rūpa), feeling (vedanā), perception (saññā), volitional formations (saṅkhārā), and consciousness (viññāṇa).",
+    "difficulty": "easy",
+    "category": "concept"
+  },
+  {
+    "id": 5,
+    "question": "What did the Buddha teach Bāhiya?",
+    "expected_refs": ["Ud 1.10"],
+    "expected_pdfs": ["udana.pdf"],
+    "expected_keywords": ["seen", "heard", "sensed", "cognized", "Bahiya"],
+    "ground_truth_summary": "In the seen, there will be merely the seen; in the heard, merely the heard; in the sensed, merely the sensed; in the cognized, merely the cognized.",
+    "difficulty": "medium",
+    "category": "sutta_lookup"
+  },
+  {
+    "id": 6,
+    "question": "What is the Satipaṭṭhāna Sutta about?",
+    "expected_refs": ["MN 10", "DN 22"],
+    "expected_pdfs": ["majjhima_nikaya1.pdf", "digha_nikaya2.pdf"],
+    "expected_keywords": ["mindfulness", "body", "feelings", "mind", "dhammas", "contemplation"],
+    "ground_truth_summary": "The four foundations of mindfulness: contemplation of body, feelings, mind, and dhammas (mental objects).",
+    "difficulty": "easy",
+    "category": "sutta_lookup"
+  },
+  {
+    "id": 7,
+    "question": "What is dependent origination?",
+    "expected_refs": ["SN 12.2"],
+    "expected_pdfs": ["samyutta_nikaya2.pdf"],
+    "expected_keywords": ["dependent", "origination", "ignorance", "formations", "consciousness", "contact", "craving"],
+    "ground_truth_summary": "A 12-link chain showing how suffering arises conditionally: from ignorance arise formations, from formations arises consciousness, and so on through birth, aging, and death.",
+    "difficulty": "medium",
+    "category": "concept"
+  },
+  {
+    "id": 8,
+    "question": "What is the Dhammacakkappavattana Sutta?",
+    "expected_refs": ["SN 56.11"],
+    "expected_pdfs": ["samyutta_nikaya5.pdf"],
+    "expected_keywords": ["wheel", "dhamma", "first sermon", "middle way", "eightfold path"],
+    "ground_truth_summary": "The Buddha's first sermon at the Deer Park, setting in motion the wheel of Dhamma, teaching the Middle Way and the Four Noble Truths.",
+    "difficulty": "easy",
+    "category": "sutta_lookup"
+  },
+  {
+    "id": 9,
+    "question": "What is the Anattalakkhaṇa Sutta about?",
+    "expected_refs": ["SN 22.59"],
+    "expected_pdfs": ["samyutta_nikaya3.pdf"],
+    "expected_keywords": ["not-self", "anatta", "aggregates", "impermanent", "suffering"],
+    "ground_truth_summary": "The Buddha teaches that the five aggregates are not-self (anattā) because they are impermanent and subject to suffering, and one has no control over them.",
+    "difficulty": "medium",
+    "category": "sutta_lookup"
+  },
+  {
+    "id": 10,
+    "question": "What are the three characteristics of existence?",
+    "expected_refs": ["SN 22.59", "Dhp 277-279"],
+    "expected_pdfs": ["samyutta_nikaya3.pdf", "dhammapada.pdf"],
+    "expected_keywords": ["impermanent", "anicca", "dukkha", "suffering", "anatta", "not-self"],
+    "ground_truth_summary": "All conditioned things are impermanent (anicca), all conditioned things are suffering (dukkha), all dhammas are not-self (anattā).",
+    "difficulty": "easy",
+    "category": "concept"
+  }
+]
