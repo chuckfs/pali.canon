@@ -26,3 +26,7 @@ archive/credentials.json
 archive/token.pkl
 *.pkl
 *.json
+
+.env
+.env.*
+!data/curriculum.json  # Ensure curriculum isn't ignored
