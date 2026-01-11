@@ -2,6 +2,17 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+# Retrieval settings
+TOP_K = int(os.getenv("TOP_K", "8"))
+RAG_MIN_NEEDED = int(os.getenv("RAG_MIN_NEEDED", "4"))  # Widen search if fewer than this
+
+# Synthesis settings  
+MIN_HITS = int(os.getenv("RAG_MIN_HITS", "2"))  # Refuse confident answer if fewer than this
+
+# Chunking settings
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "800"))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "120"))
+
 ROOT   = os.path.expanduser(os.getenv("PALI_PROJECT_ROOT", "~/pali.canon"))
 DATA   = os.path.expanduser(os.getenv("PALI_DATA_DIR", f"{ROOT}/data/pali_canon"))
 CHROMA = os.path.expanduser(os.getenv("PALI_CHROMA_DIR", f"{ROOT}/chroma"))

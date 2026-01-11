@@ -1,13 +1,9 @@
 # retriever.py
-import os
 from typing import List, Dict
 from langchain_ollama import OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
-from config import CHROMA, COLL, EMBED
-
-TOP_K = int(os.getenv("TOP_K", "8"))
-MIN_NEEDED = int(os.getenv("RAG_MIN_NEEDED", "4"))
+from config import CHROMA, COLL, EMBED, TOP_K, RAG_MIN_NEEDED
 
 def _score_bias(doc: Document, basket_hint: str | None) -> float:
     bonus = 0.0
@@ -50,7 +46,7 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
         docs = db.similarity_search(q, k=k)
 
     # If too few, widen with plain similarity
-    if len(docs) < MIN_NEEDED:
+    if len(docs) < RAG_MIN_NEEDED:
         docs = db.similarity_search(q, k=k*4)
 
     # Soft basket bias + sort
@@ -63,8 +59,6 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
     docs_sorted = [d for _, d in scored]
     docs_dedup = _dedupe_by_translation(docs_sorted)[:k]
 
-    # *** THIS IS THE UPDATED SECTION ***
-    # Now includes 'relpath' for full path citations
     return [
         {
             "text": d.page_content,

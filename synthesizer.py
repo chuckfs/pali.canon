@@ -1,15 +1,23 @@
 # synthesizer.py
 from typing import List, Dict
 from langchain_ollama import OllamaLLM
-from config import LLM
+from config import LLM, MIN_HITS
 
-# Updated system prompt to specify the new citation format
+# System prompt with grounding rules
 SYS = """You are a wise and compassionate scholar of the Pāli Canon. Your goal is to not just answer questions, but to provide insightful, reflective, and thought-provoking responses based on the provided passages.
+
+GUIDELINES:
 - Freely quote from the text to illustrate your points.
 - Connect concepts and ideas from different passages to offer a deeper understanding.
 - Where appropriate, you can ask reflective questions to encourage the user to think more deeply.
 - Always cite your sources at the end of your response in the format: 'folder/filename.pdf — p.<page>'.
-- If the passages don't contain a clear answer, you can say so, but you can also offer some general wisdom from the Canon that might be related to the user's query."""
+
+CRITICAL RULES:
+1. ONLY cite passages that appear in the Context section below.
+2. If the Context does not contain information to answer the question, say: "The retrieved passages do not directly address this question."
+3. NEVER invent or paraphrase quotes that don't appear verbatim in the Context.
+4. If you are uncertain, prefix your answer with "Based on limited evidence..."
+5. Do not make up teachings, suttas, or quotes that are not in the provided Context."""
 
 def _format_context(hits: List[Dict]) -> str:
     lines = []
@@ -34,20 +42,38 @@ def _format_sources(hits: List[Dict]) -> str:
     return "Sources:\n" + "\n".join(f"- {s}" for s in uniq)
 
 def synthesize(query: str, hits: List[Dict]) -> str:
+    # Grounding safeguard: no hits at all
     if not hits:
-        return "I couldn’t find passages for that in your index. Try reindexing or broadening the query."
+        return ("I couldn't find relevant passages for this question in the indexed texts. "
+                "Please try rephrasing your question, or check that the relevant texts are indexed.")
+    
+    # Grounding safeguard: too few hits for confident answer
+    if len(hits) < MIN_HITS:
+        sources = _format_sources(hits)
+        return (f"I found only {len(hits)} potentially relevant passage(s), which may not be "
+                f"sufficient for a complete answer. Here are the sources I found:\n\n{sources}\n\n"
+                "Try rephrasing your question or using more specific terms from the Canon.")
+    
     llm = OllamaLLM(model=LLM)
     ctx = _format_context(hits)
     prompt = f"{SYS}\n\nQuestion: {query}\n\nContext:\n{ctx}\n\nAnswer:"
     answer = llm.invoke(prompt)
     return f"{answer}\n\n{_format_sources(hits)}"
 
-# This is the new function for generating workbook entries
+# Workbook entry generator with same grounding safeguards
 def synthesize_workbook_entry(topic: str, hits: List[Dict]) -> str:
     """
     Generates a workbook entry with a specific format for beginners.
     """
-    # *** THIS IS THE UPDATED PROMPT ***
+    # Grounding safeguard
+    if not hits:
+        return "## No Passages Found\n\nCould not find relevant passages for this topic."
+    
+    if len(hits) < MIN_HITS:
+        sources = _format_sources(hits)
+        return (f"## Limited Sources\n\nOnly {len(hits)} passage(s) found, which may not be "
+                f"sufficient for a complete workbook entry.\n\n{sources}")
+    
     WORKBOOK_SYS = f"""You are a gentle and encouraging guide to the Pāli Canon, creating a daily workbook for a beginner. The topic for today is: "{topic}".
 
 Based on the provided passages, please generate a workbook entry with the following sections, clearly separated by Markdown headings:
@@ -63,7 +89,8 @@ In a few simple sentences, explain the core teaching of the daily passage. What 
 
 ### Journal Prompt
 Provide one open-ended journal prompt that encourages the reader to reflect on today's teaching and how it might apply to their own life.
-"""
+
+CRITICAL: Only use passages from the provided Context. Do not invent quotes or teachings."""
 
     llm = OllamaLLM(model=LLM)
     ctx = _format_context(hits)
