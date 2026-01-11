@@ -1,136 +1,185 @@
 # pali.canon
 
-**Canon-grounded Q&A over the Theravāda Pāli Canon — fully local, private, and citation-based.**
+**Local, private, citation-grounded Q&A for the Pāli Canon.**
 
-![App Screenshot](assets/demo_screenshot.png)
+> *"Careful attention is the path to the Deathless."* — Dhammapada 21
 
-> _"He who drinks deep of the Dhamma lives happily with a tranquil mind."_ — Dhammapada 79
+pali.canon is a Retrieval-Augmented Generation (RAG) system for studying the Theravāda Buddhist scriptures. It runs entirely on your local machine using Ollama, ensuring complete privacy for your contemplative practice.
 
-**pali.canon** is a Retrieval-Augmented Generation (RAG) pipeline designed to study the Pāli Canon. It runs entirely on your local machine using **Ollama** and **ChromaDB**, ensuring 100% privacy for your contemplative studies.
+## What It Does
 
-## ✨ Features
+1. **Indexes your PDF library** — Processes the Pāli Canon (or any PDF collection), runs OCR when needed, and builds a searchable vector database.
+2. **Answers questions with citations** — Uses semantic search to find relevant passages, then generates answers grounded in the retrieved texts.
+3. **Generates study materials** — Creates daily workbook entries following a structured 365-day curriculum.
 
-* **🔍 OCR-First Indexing**
-    Automatically detects non-searchable PDFs and runs OCR (via `ocrmypdf`), caching results to prevent redundant processing.
-* **🧠 Structured Planning**
-    Uses a specialized planner (`planner.py`) that understands Pāli citations (e.g., "SN 35.28", "Vinaya") to route queries intelligently.
-* **📚 365-Day Workbook Generator**
-    Includes a full-year curriculum (`data/curriculum.json`) to generate daily reflective workbook entries based on canonical themes.
-* **🛡️ Fully Local & Private**
-    Powered by `mistral` (LLM) and `nomic-embed-text` (Embeddings) via Ollama. No API keys, no cloud costs.
+## How It Works
 
-## 🗂 Repo Layout
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Your      │     │   Indexer   │     │  ChromaDB   │     │   Ollama    │
+│   PDFs      │────▶│  + OCR      │────▶│  (vectors)  │     │  (LLM)      │
+└─────────────┘     └─────────────┘     └──────┬──────┘     └──────┬──────┘
+                                               │                   │
+                    ┌──────────────────────────┘                   │
+                    │                                              │
+                    ▼                                              │
+              ┌─────────────┐     ┌─────────────┐     ┌────────────┘
+              │  Retriever  │────▶│ Synthesizer │────▶│  Answer
+              │  (search)   │     │  (generate) │     │  + Sources
+              └─────────────┘     └─────────────┘     └────────────
+```
 
-```text
-pali.canon/
-├── app.py                   # Gradio Web UI (Chat + Workbook)
-├── generate_full_workbook.py# Script to generate 365 days of markdown files
-├── indexer.py               # PDF processor & Vector DB builder
-├── planner.py               # Query analyzer & Citation parser
-├── retriever.py             # MMR-based search engine
-├── synthesizer.py           # Answer generator (RAG)
-├── config.py                # Configuration loader
-├── requirements.txt         # Pinned dependencies
-├── data/
-│   ├── curriculum.json      # Structured study plan
-│   └── pali_canon/          # (Input) Your full collection of PDFs
-└── assets/                  # Images and screenshots
-````
+1. **Indexing**: PDFs are OCR'd (if needed), split into overlapping chunks, embedded with `nomic-embed-text`, and stored in ChromaDB.
+2. **Query Planning**: Your question is analyzed for canonical citations (e.g., "SN 35.28"), basket hints (Vinaya/Sutta/Abhidhamma), and keywords.
+3. **Retrieval**: Maximal Marginal Relevance search finds diverse, relevant passages.
+4. **Synthesis**: Mistral generates an answer grounded in the retrieved passages, with source citations.
 
-## 🚀 Quick Start (Demo Mode)
+## Prerequisites
 
-If you don't have the full Pāli Canon PDFs, you can test the architecture using the included sample data.
+- **Python 3.10+**
+- **Ollama** — Install from [ollama.com](https://ollama.com)
+- **OCRmyPDF** (optional but recommended)
+  ```bash
+  # macOS
+  brew install ocrmypdf
+  
+  # Ubuntu/Debian
+  sudo apt install ocrmypdf
+  ```
 
-**1. Prerequisites**
-
-  * **Python 3.10+**
-  * **Ollama**: Install [Ollama](https://ollama.com/) and pull the required models:
-    ```bash
-    ollama pull mistral
-    ollama pull nomic-embed-text
-    ```
-  * **OCR Tools**: Install `ocrmypdf` (optional, but recommended for full features).
-    ```bash
-    brew install ocrmypdf  # macOS
-    # or
-    sudo apt install ocrmypdf # Linux
-    ```
-
-**2. Installation**
+## Installation
 
 ```bash
-# Clone and setup env
-git clone [https://github.com/yourusername/pali.canon.git](https://github.com/yourusername/pali.canon.git)
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/pali.canon.git
 cd pali.canon
+
+# Create virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Pull required Ollama models
+ollama pull mistral
+ollama pull nomic-embed-text
 ```
 
-**3. Run with Sample Data**
-The repo comes with a sample PDF to demonstrate functionality without a large download.
+## Quick Start (Demo Mode)
+
+Test the system with included sample data:
 
 ```bash
-# 1. Build the index on the sample folder
+# Build index on sample data
 export PALI_DATA_DIR="./data/sample_canon"
 python indexer.py
 
-# 2. Launch the Web UI
-export PALI_DATA_DIR="./data/sample_canon"
+# Launch the web interface
 python app.py
+# Open http://127.0.0.1:7860
 ```
 
-*Open your browser to [http://127.0.0.1:7860](http://127.0.0.1:7860)*
+## Full Usage
 
-## 📖 Full Usage (for Practitioners)
+### 1. Add Your PDFs
 
-If you have your own collection of Canon PDFs, place them in `data/pali_canon/` (or configure via `.env`).
+Place your Pāli Canon PDFs in `data/pali_canon/` organized by basket:
+```
+data/pali_canon/
+├── vinaya_pitaka/
+├── sutta_pitaka/
+│   ├── digha_nikaya/
+│   ├── majjhima_nikaya/
+│   └── ...
+└── abhidhamma_pitaka/
+```
 
-### 1\. Build the Index
-
-This scans your library, performs OCR if needed, and builds the Chroma vector store.
+### 2. Build the Index
 
 ```bash
 python indexer.py
 ```
 
-### 2\. Start the App
+This scans all PDFs, runs OCR on image-based files (cached for future runs), and builds the vector database. First run may take 1-2 hours for a full Canon collection.
+
+### 3. Start the Application
 
 ```bash
 python app.py
 ```
 
-### 3\. Generate a Year of Study
+### 4. Generate Study Workbook (Optional)
 
-Create a folder full of markdown reflections for the entire year:
+Create a year's worth of daily study entries:
 
 ```bash
 python generate_full_workbook.py
+# Output: My_Pali_Workbook/
 ```
 
-*Output: `My_Pali_Workbook/Month_01/...`*
+## Configuration
 
-## ⚙️ Configuration
-
-You can override defaults by setting environment variables or creating a `.env` file:
+Set via environment variables or `.env` file:
 
 | Variable | Default | Description |
-| :--- | :--- | :--- |
-| `PALI_DATA_DIR` | `~/pali.canon/data/pali_canon` | Source directory for PDFs |
-| `PALI_CHROMA_DIR` | `~/pali.canon/chroma` | Location of Vector DB |
-| `PALI_LLM_MODEL` | `mistral` | LLM for synthesis |
-| `PALI_EMBED_MODEL` | `nomic-embed-text` | Embedding model |
+|----------|---------|-------------|
+| `PALI_DATA_DIR` | `~/pali.canon/data/pali_canon` | Source PDF directory |
+| `PALI_CHROMA_DIR` | `~/pali.canon/chroma` | Vector database location |
+| `PALI_LLM_MODEL` | `mistral` | Ollama model for generation |
+| `PALI_EMBED_MODEL` | `nomic-embed-text` | Ollama model for embeddings |
 
-## 🧘‍♂️ Troubleshooting
+## Project Structure
 
-  * **Ollama Connection Failed:** Ensure Ollama is running (`ollama serve` or check your menu bar).
-  * **Empty Answers:** If the indexer finished instantly, check that your `PALI_DATA_DIR` actually contains PDFs.
-  * **"Topic Not Found":** When generating workbooks, ensure `data/curriculum.json` exists and is valid JSON.
+```
+pali.canon/
+├── app.py              # Gradio web interface
+├── indexer.py          # PDF → vectors pipeline
+├── planner.py          # Query analysis
+├── retriever.py        # Vector search
+├── synthesizer.py      # Answer generation
+├── config.py           # Configuration
+├── data/
+│   ├── curriculum.json # 365-day study plan
+│   └── pali_canon/     # Your PDFs (gitignored)
+└── docs/               # Documentation
+```
 
-## 📜 License
+## Design Goals
+
+- **Privacy first** — Everything runs locally; no data leaves your machine
+- **Citation grounded** — Answers include source references
+- **Scholarly tone** — Responses encourage reflection, not just information delivery
+- **Accessible** — Works on consumer hardware (M1 Mac, modest GPU)
+
+## Non-Goals (Current Limitations)
+
+- **Not a translation tool** — Works with existing translations, doesn't translate Pāli
+- **Not verse-level precise** — Retrieves by page/chunk, not by sutta number (yet)
+- **Not multi-user** — Designed for personal study, not concurrent access
+- **No quality guarantees** — Answers may contain errors; always verify against sources
+
+## Roadmap
+
+- [ ] Structured citation metadata (sutta numbers, PTS references)
+- [ ] Evaluation framework with golden dataset
+- [ ] Hybrid search (semantic + keyword)
+- [ ] Cross-encoder reranking
+- [ ] Pāli term expansion (craving ↔ taṇhā)
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| "Connection refused" | Ensure Ollama is running: `ollama serve` |
+| Empty answers | Check `PALI_DATA_DIR` points to actual PDFs |
+| Slow first run | OCR is processing; results are cached for future runs |
+| "Topic not found" | Verify `data/curriculum.json` exists and is valid JSON |
+
+## License
 
 Apache-2.0
 
------
+---
 
-*May all beings be happy and free.*
+*Sabbadānaṃ dhammadānaṃ jināti.* — The gift of Dhamma excels all gifts.
