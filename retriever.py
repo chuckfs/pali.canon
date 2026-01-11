@@ -1,7 +1,7 @@
 # retriever.py
 from typing import List, Dict
 from langchain_ollama import OllamaEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from config import CHROMA, COLL, EMBED, TOP_K, RAG_MIN_NEEDED
 
@@ -15,7 +15,7 @@ def _dedupe_by_translation(docs: List[Document]) -> List[Document]:
     """Keep alphabetically-first by pdf_name to avoid repeating translations."""
     kept = []
     seen_names = set()
-    for d in sorted(docs, key=lambda x: (x.metadata.get("pdf_name","").lower())):
+    for d in sorted(docs, key=lambda x: (x.metadata.get("pdf_name", "").lower())):
         name = d.metadata.get("pdf_name", "").lower()
         if name in seen_names:
             continue
@@ -38,14 +38,33 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
     queries = plan.get("query_terms") or []
     q = " | ".join(queries) if queries else ""
 
-    # Phase A: true MMR (use the dedicated method)
-    try:
-        docs = db.max_marginal_relevance_search(q, k=k, fetch_k=k*4)
-    except TypeError:
-        # Older versions may use a different signature; fall back to plain search.
-        docs = db.similarity_search(q, k=k)
+    # Build filter for basket if specified
+    where_filter = None
+    if basket_hint:
+        where_filter = {"basket": basket_hint}
 
-    # If too few, widen with plain similarity
+    # Phase A: MMR search with optional basket filter
+    try:
+        if where_filter:
+            docs = db.max_marginal_relevance_search(q, k=k, fetch_k=k*4, filter=where_filter)
+        else:
+            docs = db.max_marginal_relevance_search(q, k=k, fetch_k=k*4)
+    except TypeError:
+        # Older versions may use different signature; fall back to plain search
+        if where_filter:
+            docs = db.similarity_search(q, k=k, filter=where_filter)
+        else:
+            docs = db.similarity_search(q, k=k)
+
+    # If too few results with filter, try without filter
+    if len(docs) < RAG_MIN_NEEDED and where_filter:
+        print(f"  ⚠️ Only {len(docs)} results with basket filter, searching all baskets...")
+        try:
+            docs = db.max_marginal_relevance_search(q, k=k, fetch_k=k*4)
+        except TypeError:
+            docs = db.similarity_search(q, k=k)
+
+    # If still too few, widen with plain similarity
     if len(docs) < RAG_MIN_NEEDED:
         docs = db.similarity_search(q, k=k*4)
 
@@ -65,7 +84,7 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
             "pdf_name": d.metadata.get("pdf_name"),
             "page": d.metadata.get("page"),
             "span_id": d.metadata.get("span_id"),
-            "relpath": d.metadata.get("relpath"), # <-- ADDED THIS LINE
+            "relpath": d.metadata.get("relpath"),
             "score": 0.0,
         }
         for d in docs_dedup
