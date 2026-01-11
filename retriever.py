@@ -267,30 +267,3 @@ def rebuild_bm25_index():
 
 if __name__ == "__main__":
     rebuild_bm25_index()
-```
-
-**What Step 9 adds:**
-
-1. **Citation extraction during indexing:**
-   - Regex patterns for DN/MN/SN/AN references
-   - Full nikaya name detection
-   - Common sutta name mapping (e.g., "Fire Sermon" → SN 35.28)
-
-2. **New metadata fields:**
-   - `nikaya`: Inferred from file path (DN, MN, SN, AN, etc.)
-   - `citations`: Comma-separated list of references found in chunk
-
-3. **Citation-based retrieval:**
-   - When planner finds targets like "SN 35.28", retriever searches for chunks with matching citations
-   - Citation matches get boosted in RRF scoring
-
-**The full retrieval pipeline is now:**
-```
-Query 
-  → Planner extracts "SN 35.28" as target
-  → Citation Search (find chunks mentioning SN 35.28)
-  → Semantic Search (32 candidates)
-  → BM25 Search (32 candidates)  
-  → Reciprocal Rank Fusion (citation docs boosted 2x)
-  → Cross-Encoder Rerank
-  → Basket Bias → Dedupe → Return top 8
