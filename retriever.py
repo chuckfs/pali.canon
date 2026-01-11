@@ -3,7 +3,38 @@ from typing import List, Dict
 from langchain_ollama import OllamaEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from sentence_transformers import CrossEncoder
 from config import CHROMA, COLL, EMBED, TOP_K, RAG_MIN_NEEDED
+
+# Load cross-encoder for reranking (loaded once at module level)
+_reranker = None
+
+def _get_reranker():
+    global _reranker
+    if _reranker is None:
+        print("Loading cross-encoder reranker...")
+        _reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+    return _reranker
+
+def _rerank(query: str, docs: List[Document], top_n: int) -> List[Document]:
+    """Rerank documents using cross-encoder."""
+    if not docs:
+        return docs
+    
+    reranker = _get_reranker()
+    
+    # Create query-document pairs
+    pairs = [(query, d.page_content) for d in docs]
+    
+    # Score all pairs
+    scores = reranker.predict(pairs)
+    
+    # Sort by score descending
+    scored_docs = list(zip(scores, docs))
+    scored_docs.sort(key=lambda x: x[0], reverse=True)
+    
+    # Return top_n
+    return [doc for _, doc in scored_docs[:top_n]]
 
 def _score_bias(doc: Document, basket_hint: str | None) -> float:
     bonus = 0.0
@@ -43,30 +74,36 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
     if basket_hint:
         where_filter = {"basket": basket_hint}
 
-    # Phase A: MMR search with optional basket filter
+    # Phase A: Get more candidates than needed for reranking
+    fetch_k = k * 4  # Fetch extra for reranking
+    
     try:
         if where_filter:
-            docs = db.max_marginal_relevance_search(q, k=k, fetch_k=k*4, filter=where_filter)
+            docs = db.max_marginal_relevance_search(q, k=fetch_k, fetch_k=fetch_k*2, filter=where_filter)
         else:
-            docs = db.max_marginal_relevance_search(q, k=k, fetch_k=k*4)
+            docs = db.max_marginal_relevance_search(q, k=fetch_k, fetch_k=fetch_k*2)
     except TypeError:
-        # Older versions may use different signature; fall back to plain search
         if where_filter:
-            docs = db.similarity_search(q, k=k, filter=where_filter)
+            docs = db.similarity_search(q, k=fetch_k, filter=where_filter)
         else:
-            docs = db.similarity_search(q, k=k)
+            docs = db.similarity_search(q, k=fetch_k)
 
     # If too few results with filter, try without filter
     if len(docs) < RAG_MIN_NEEDED and where_filter:
-        print(f"  ⚠️ Only {len(docs)} results with basket filter, searching all baskets...")
         try:
-            docs = db.max_marginal_relevance_search(q, k=k, fetch_k=k*4)
+            docs = db.max_marginal_relevance_search(q, k=fetch_k, fetch_k=fetch_k*2)
         except TypeError:
-            docs = db.similarity_search(q, k=k)
+            docs = db.similarity_search(q, k=fetch_k)
 
-    # If still too few, widen with plain similarity
+    # If still too few, widen search
     if len(docs) < RAG_MIN_NEEDED:
-        docs = db.similarity_search(q, k=k*4)
+        docs = db.similarity_search(q, k=fetch_k*2)
+
+    # Phase B: Rerank using cross-encoder
+    if docs:
+        # Use original query for reranking (not the joined version)
+        original_query = queries[0] if queries else q
+        docs = _rerank(original_query, docs, top_n=k*2)
 
     # Soft basket bias + sort
     scored = []
@@ -89,3 +126,15 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
         }
         for d in docs_dedup
     ]
+```
+
+**What this does:**
+
+1. **Fetches more candidates** — Gets `k * 4` documents from vector search instead of just `k`
+2. **Reranks with cross-encoder** — Uses `ms-marco-MiniLM-L-6-v2` to score query-document relevance
+3. **Lazy loading** — Reranker model only loads on first use
+4. **Uses original query** — Reranks with the human's actual question, not the processed version
+
+**The flow is now:**
+```
+Query → Vector Search (get 32 candidates) → Cross-Encoder Rerank (keep top 16) → Basket Bias → Dedupe → Return top 8
