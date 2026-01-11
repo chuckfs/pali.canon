@@ -1,13 +1,21 @@
 # retriever.py
-from typing import List, Dict
+import os
+import pickle
+from typing import List, Dict, Optional
 from langchain_ollama import OllamaEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from sentence_transformers import CrossEncoder
+from rank_bm25 import BM25Okapi
 from config import CHROMA, COLL, EMBED, TOP_K, RAG_MIN_NEEDED
 
-# Load cross-encoder for reranking (loaded once at module level)
+# Cache paths
+BM25_CACHE = os.path.join(CHROMA, "bm25_cache.pkl")
+
+# Lazy-loaded globals
 _reranker = None
+_bm25_index = None
+_bm25_docs = None
 
 def _get_reranker():
     global _reranker
@@ -16,24 +24,111 @@ def _get_reranker():
         _reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
     return _reranker
 
+def _tokenize(text: str) -> List[str]:
+    """Simple whitespace tokenizer with lowercasing."""
+    return text.lower().split()
+
+def _build_bm25_index(db) -> tuple:
+    """Build BM25 index from all documents in the vector store."""
+    print("Building BM25 index (first run only)...")
+    
+    # Get all documents from Chroma
+    collection = db._collection
+    results = collection.get(include=["documents", "metadatas"])
+    
+    documents = results.get("documents", [])
+    metadatas = results.get("metadatas", [])
+    ids = results.get("ids", [])
+    
+    # Create Document objects
+    docs = []
+    for i, (text, meta) in enumerate(zip(documents, metadatas)):
+        if text:
+            docs.append(Document(page_content=text, metadata=meta or {}))
+    
+    # Tokenize for BM25
+    tokenized = [_tokenize(d.page_content) for d in docs]
+    
+    # Build BM25 index
+    bm25 = BM25Okapi(tokenized)
+    
+    # Cache it
+    with open(BM25_CACHE, 'wb') as f:
+        pickle.dump((bm25, docs), f)
+    
+    print(f"  ✓ BM25 index built with {len(docs)} documents")
+    return bm25, docs
+
+def _get_bm25_index(db):
+    """Get or build BM25 index."""
+    global _bm25_index, _bm25_docs
+    
+    if _bm25_index is not None:
+        return _bm25_index, _bm25_docs
+    
+    # Try to load from cache
+    if os.path.exists(BM25_CACHE):
+        try:
+            with open(BM25_CACHE, 'rb') as f:
+                _bm25_index, _bm25_docs = pickle.load(f)
+            print(f"Loaded BM25 index from cache ({len(_bm25_docs)} docs)")
+            return _bm25_index, _bm25_docs
+        except Exception as e:
+            print(f"  ⚠️ Failed to load BM25 cache: {e}")
+    
+    # Build fresh
+    _bm25_index, _bm25_docs = _build_bm25_index(db)
+    return _bm25_index, _bm25_docs
+
+def _bm25_search(query: str, db, k: int = 20) -> List[Document]:
+    """Search using BM25."""
+    bm25, docs = _get_bm25_index(db)
+    
+    tokenized_query = _tokenize(query)
+    scores = bm25.get_scores(tokenized_query)
+    
+    # Get top-k indices
+    top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
+    
+    return [docs[i] for i in top_indices if scores[i] > 0]
+
+def _reciprocal_rank_fusion(results_lists: List[List[Document]], k: int = 60) -> List[Document]:
+    """
+    Combine multiple ranked lists using Reciprocal Rank Fusion.
+    k is the RRF constant (default 60 is standard).
+    """
+    doc_scores = {}
+    doc_objects = {}
+    
+    for results in results_lists:
+        for rank, doc in enumerate(results):
+            # Use page_content as key (or could use a hash)
+            key = doc.page_content[:200]  # First 200 chars as key
+            
+            if key not in doc_objects:
+                doc_objects[key] = doc
+            
+            # RRF score: 1 / (k + rank)
+            rrf_score = 1.0 / (k + rank + 1)
+            doc_scores[key] = doc_scores.get(key, 0) + rrf_score
+    
+    # Sort by combined score
+    sorted_keys = sorted(doc_scores.keys(), key=lambda x: doc_scores[x], reverse=True)
+    
+    return [doc_objects[key] for key in sorted_keys]
+
 def _rerank(query: str, docs: List[Document], top_n: int) -> List[Document]:
     """Rerank documents using cross-encoder."""
     if not docs:
         return docs
     
     reranker = _get_reranker()
-    
-    # Create query-document pairs
     pairs = [(query, d.page_content) for d in docs]
-    
-    # Score all pairs
     scores = reranker.predict(pairs)
     
-    # Sort by score descending
     scored_docs = list(zip(scores, docs))
     scored_docs.sort(key=lambda x: x[0], reverse=True)
     
-    # Return top_n
     return [doc for _, doc in scored_docs[:top_n]]
 
 def _score_bias(doc: Document, basket_hint: str | None) -> float:
@@ -68,41 +163,46 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
     basket_hint = plan.get("basket_hint")
     queries = plan.get("query_terms") or []
     q = " | ".join(queries) if queries else ""
+    original_query = queries[0] if queries else q
 
     # Build filter for basket if specified
     where_filter = None
     if basket_hint:
         where_filter = {"basket": basket_hint}
 
-    # Phase A: Get more candidates than needed for reranking
-    fetch_k = k * 4  # Fetch extra for reranking
+    fetch_k = k * 4
+
+    # === HYBRID SEARCH ===
     
+    # 1. Semantic search (vector)
     try:
         if where_filter:
-            docs = db.max_marginal_relevance_search(q, k=fetch_k, fetch_k=fetch_k*2, filter=where_filter)
+            semantic_docs = db.max_marginal_relevance_search(q, k=fetch_k, fetch_k=fetch_k*2, filter=where_filter)
         else:
-            docs = db.max_marginal_relevance_search(q, k=fetch_k, fetch_k=fetch_k*2)
+            semantic_docs = db.max_marginal_relevance_search(q, k=fetch_k, fetch_k=fetch_k*2)
     except TypeError:
         if where_filter:
-            docs = db.similarity_search(q, k=fetch_k, filter=where_filter)
+            semantic_docs = db.similarity_search(q, k=fetch_k, filter=where_filter)
         else:
-            docs = db.similarity_search(q, k=fetch_k)
+            semantic_docs = db.similarity_search(q, k=fetch_k)
+
+    # 2. BM25 keyword search
+    bm25_docs = _bm25_search(original_query, db, k=fetch_k)
+
+    # 3. Combine with Reciprocal Rank Fusion
+    docs = _reciprocal_rank_fusion([semantic_docs, bm25_docs])[:fetch_k]
 
     # If too few results with filter, try without filter
     if len(docs) < RAG_MIN_NEEDED and where_filter:
         try:
-            docs = db.max_marginal_relevance_search(q, k=fetch_k, fetch_k=fetch_k*2)
+            semantic_docs = db.max_marginal_relevance_search(q, k=fetch_k, fetch_k=fetch_k*2)
         except TypeError:
-            docs = db.similarity_search(q, k=fetch_k)
+            semantic_docs = db.similarity_search(q, k=fetch_k)
+        bm25_docs = _bm25_search(original_query, db, k=fetch_k)
+        docs = _reciprocal_rank_fusion([semantic_docs, bm25_docs])[:fetch_k]
 
-    # If still too few, widen search
-    if len(docs) < RAG_MIN_NEEDED:
-        docs = db.similarity_search(q, k=fetch_k*2)
-
-    # Phase B: Rerank using cross-encoder
+    # === RERANKING ===
     if docs:
-        # Use original query for reranking (not the joined version)
-        original_query = queries[0] if queries else q
         docs = _rerank(original_query, docs, top_n=k*2)
 
     # Soft basket bias + sort
@@ -126,15 +226,21 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
         }
         for d in docs_dedup
     ]
-```
 
-**What this does:**
+def rebuild_bm25_index():
+    """Utility function to rebuild BM25 index after reindexing."""
+    global _bm25_index, _bm25_docs
+    
+    if os.path.exists(BM25_CACHE):
+        os.remove(BM25_CACHE)
+    
+    _bm25_index = None
+    _bm25_docs = None
+    
+    db = _client()
+    _get_bm25_index(db)
+    print("BM25 index rebuilt.")
 
-1. **Fetches more candidates** — Gets `k * 4` documents from vector search instead of just `k`
-2. **Reranks with cross-encoder** — Uses `ms-marco-MiniLM-L-6-v2` to score query-document relevance
-3. **Lazy loading** — Reranker model only loads on first use
-4. **Uses original query** — Reranks with the human's actual question, not the processed version
-
-**The flow is now:**
-```
-Query → Vector Search (get 32 candidates) → Cross-Encoder Rerank (keep top 16) → Basket Bias → Dedupe → Return top 8
+if __name__ == "__main__":
+    # Rebuild BM25 index when run directly
+    rebuild_bm25_index()
