@@ -32,27 +32,20 @@ def _build_bm25_index(db) -> tuple:
     """Build BM25 index from all documents in the vector store."""
     print("Building BM25 index (first run only)...")
     
-    # Get all documents from Chroma
     collection = db._collection
     results = collection.get(include=["documents", "metadatas"])
     
     documents = results.get("documents", [])
     metadatas = results.get("metadatas", [])
-    ids = results.get("ids", [])
     
-    # Create Document objects
     docs = []
     for i, (text, meta) in enumerate(zip(documents, metadatas)):
         if text:
             docs.append(Document(page_content=text, metadata=meta or {}))
     
-    # Tokenize for BM25
     tokenized = [_tokenize(d.page_content) for d in docs]
-    
-    # Build BM25 index
     bm25 = BM25Okapi(tokenized)
     
-    # Cache it
     with open(BM25_CACHE, 'wb') as f:
         pickle.dump((bm25, docs), f)
     
@@ -66,7 +59,6 @@ def _get_bm25_index(db):
     if _bm25_index is not None:
         return _bm25_index, _bm25_docs
     
-    # Try to load from cache
     if os.path.exists(BM25_CACHE):
         try:
             with open(BM25_CACHE, 'rb') as f:
@@ -76,7 +68,6 @@ def _get_bm25_index(db):
         except Exception as e:
             print(f"  ⚠️ Failed to load BM25 cache: {e}")
     
-    # Build fresh
     _bm25_index, _bm25_docs = _build_bm25_index(db)
     return _bm25_index, _bm25_docs
 
@@ -87,32 +78,46 @@ def _bm25_search(query: str, db, k: int = 20) -> List[Document]:
     tokenized_query = _tokenize(query)
     scores = bm25.get_scores(tokenized_query)
     
-    # Get top-k indices
     top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
     
     return [docs[i] for i in top_indices if scores[i] > 0]
 
+def _citation_search(target_refs: List[str], db) -> List[Document]:
+    """Search for documents containing specific citation references."""
+    if not target_refs:
+        return []
+    
+    bm25, docs = _get_bm25_index(db)
+    
+    matching_docs = []
+    for doc in docs:
+        doc_citations = doc.metadata.get("citations", "")
+        if doc_citations:
+            for ref in target_refs:
+                # Normalize for comparison
+                ref_normalized = ref.upper().replace(" ", "")
+                citations_normalized = doc_citations.upper().replace(" ", "")
+                if ref_normalized in citations_normalized:
+                    matching_docs.append(doc)
+                    break
+    
+    return matching_docs
+
 def _reciprocal_rank_fusion(results_lists: List[List[Document]], k: int = 60) -> List[Document]:
-    """
-    Combine multiple ranked lists using Reciprocal Rank Fusion.
-    k is the RRF constant (default 60 is standard).
-    """
+    """Combine multiple ranked lists using Reciprocal Rank Fusion."""
     doc_scores = {}
     doc_objects = {}
     
     for results in results_lists:
         for rank, doc in enumerate(results):
-            # Use page_content as key (or could use a hash)
-            key = doc.page_content[:200]  # First 200 chars as key
+            key = doc.page_content[:200]
             
             if key not in doc_objects:
                 doc_objects[key] = doc
             
-            # RRF score: 1 / (k + rank)
             rrf_score = 1.0 / (k + rank + 1)
             doc_scores[key] = doc_scores.get(key, 0) + rrf_score
     
-    # Sort by combined score
     sorted_keys = sorted(doc_scores.keys(), key=lambda x: doc_scores[x], reverse=True)
     
     return [doc_objects[key] for key in sorted_keys]
@@ -161,6 +166,7 @@ def _client():
 def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
     db = _client()
     basket_hint = plan.get("basket_hint")
+    target_refs = plan.get("targets", [])  # Citation targets from planner
     queries = plan.get("query_terms") or []
     q = " | ".join(queries) if queries else ""
     original_query = queries[0] if queries else q
@@ -174,7 +180,10 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
 
     # === HYBRID SEARCH ===
     
-    # 1. Semantic search (vector)
+    # 1. Citation-based search (highest priority if targets specified)
+    citation_docs = _citation_search(target_refs, db) if target_refs else []
+    
+    # 2. Semantic search (vector)
     try:
         if where_filter:
             semantic_docs = db.max_marginal_relevance_search(q, k=fetch_k, fetch_k=fetch_k*2, filter=where_filter)
@@ -186,11 +195,18 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
         else:
             semantic_docs = db.similarity_search(q, k=fetch_k)
 
-    # 2. BM25 keyword search
+    # 3. BM25 keyword search
     bm25_docs = _bm25_search(original_query, db, k=fetch_k)
 
-    # 3. Combine with Reciprocal Rank Fusion
-    docs = _reciprocal_rank_fusion([semantic_docs, bm25_docs])[:fetch_k]
+    # 4. Combine with Reciprocal Rank Fusion
+    # Citation docs get extra weight by appearing in their own list
+    all_result_lists = [semantic_docs, bm25_docs]
+    if citation_docs:
+        # Add citation docs twice to boost their score
+        all_result_lists.insert(0, citation_docs)
+        all_result_lists.insert(0, citation_docs)
+    
+    docs = _reciprocal_rank_fusion(all_result_lists)[:fetch_k]
 
     # If too few results with filter, try without filter
     if len(docs) < RAG_MIN_NEEDED and where_filter:
@@ -199,7 +215,13 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
         except TypeError:
             semantic_docs = db.similarity_search(q, k=fetch_k)
         bm25_docs = _bm25_search(original_query, db, k=fetch_k)
-        docs = _reciprocal_rank_fusion([semantic_docs, bm25_docs])[:fetch_k]
+        
+        all_result_lists = [semantic_docs, bm25_docs]
+        if citation_docs:
+            all_result_lists.insert(0, citation_docs)
+            all_result_lists.insert(0, citation_docs)
+        
+        docs = _reciprocal_rank_fusion(all_result_lists)[:fetch_k]
 
     # === RERANKING ===
     if docs:
@@ -222,6 +244,8 @@ def retrieve(plan: Dict, k: int = TOP_K) -> List[Dict]:
             "page": d.metadata.get("page"),
             "span_id": d.metadata.get("span_id"),
             "relpath": d.metadata.get("relpath"),
+            "nikaya": d.metadata.get("nikaya", ""),
+            "citations": d.metadata.get("citations", ""),
             "score": 0.0,
         }
         for d in docs_dedup
@@ -242,5 +266,31 @@ def rebuild_bm25_index():
     print("BM25 index rebuilt.")
 
 if __name__ == "__main__":
-    # Rebuild BM25 index when run directly
     rebuild_bm25_index()
+```
+
+**What Step 9 adds:**
+
+1. **Citation extraction during indexing:**
+   - Regex patterns for DN/MN/SN/AN references
+   - Full nikaya name detection
+   - Common sutta name mapping (e.g., "Fire Sermon" → SN 35.28)
+
+2. **New metadata fields:**
+   - `nikaya`: Inferred from file path (DN, MN, SN, AN, etc.)
+   - `citations`: Comma-separated list of references found in chunk
+
+3. **Citation-based retrieval:**
+   - When planner finds targets like "SN 35.28", retriever searches for chunks with matching citations
+   - Citation matches get boosted in RRF scoring
+
+**The full retrieval pipeline is now:**
+```
+Query 
+  → Planner extracts "SN 35.28" as target
+  → Citation Search (find chunks mentioning SN 35.28)
+  → Semantic Search (32 candidates)
+  → BM25 Search (32 candidates)  
+  → Reciprocal Rank Fusion (citation docs boosted 2x)
+  → Cross-Encoder Rerank
+  → Basket Bias → Dedupe → Return top 8
