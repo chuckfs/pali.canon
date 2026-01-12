@@ -24,7 +24,7 @@ MAX_CHUNK_CHARS = 6000
 
 # === CITATION EXTRACTION PATTERNS ===
 
-# Pattern for standard references: DN 1, MN 21, SN 35.28, AN 4.159, Dhp 21, Ud 1.10, etc.
+# Pattern for standard references: DN 1, MN 21, SN 35.28, AN 4.159, Dhp 21, Ud 1.10, It 112, etc.
 # Supports: "SN 35.28", "SN35.28", "SN.35.28", "SN-35.28", "SN:35:28", "MN.21"
 NIKAYA_REF_RE = re.compile(
     r"\b(DN|MN|SN|AN|Dhp|Ud|It|Sn|Thag|Thig|Khp|Vv|Pv|Ja)"
@@ -32,6 +32,13 @@ NIKAYA_REF_RE = re.compile(
     r"(\d{1,3})"
     r"(?:\s*[-\.:]\s*(\d{1,3}))?"
     r"\b",
+    re.IGNORECASE,
+)
+
+# Book-name references like: "Dhammapada 21", "Udāna 1.10", "Itivuttaka 112"
+BOOK_REF_RE = re.compile(
+    r"\b(Dhammapada|Dhp|Udāna|Udana|Ud|Itivuttaka|It)\b\s*"
+    r"(\d{1,3})(?:[\.:]\s*(\d{1,3}))?\b",
     re.IGNORECASE,
 )
 
@@ -149,12 +156,10 @@ def _normalize_nikaya_token(raw: str) -> str:
     if key == "sn":
         return "SN"
 
-    # Everything else via map; fallback to upper() for DN/MN/SN/AN style codes
     mapped = NIKAYA_ABBREV.get(key)
     if mapped:
         return mapped
 
-    # Fallback: keep a reasonable uppercase token
     return raw.upper()
 
 
@@ -172,6 +177,19 @@ def _extract_citations(text: str) -> List[str]:
         num2 = match.group(3)
 
         nikaya = _normalize_nikaya_token(raw_nikaya)
+
+        if num2:
+            citations.add(f"{nikaya} {num1}.{num2}")
+        else:
+            citations.add(f"{nikaya} {num1}")
+
+    # 1b) Book-name references (Dhammapada 21, Udāna 1.10, Itivuttaka 112)
+    for match in BOOK_REF_RE.finditer(text):
+        raw_book = match.group(1)
+        num1 = match.group(2)
+        num2 = match.group(3)
+
+        nikaya = NIKAYA_ABBREV.get(raw_book.lower(), raw_book)
 
         if num2:
             citations.add(f"{nikaya} {num1}.{num2}")
@@ -199,14 +217,12 @@ def _extract_citations(text: str) -> List[str]:
             citations.add(ref)
 
     # 4) Diacritic-insensitive substring matching for sutta names (handles OCR variance)
-    # This catches cases like: "Satipaṭṭhāna Sutta and Ādittapariyāya"
     t_norm = _strip_diacritics(text).lower()
     for name, ref in SUTTA_NAME_TO_REF.items():
         name_norm = _strip_diacritics(name).lower()
         if name_norm and name_norm in t_norm:
             citations.add(ref)
 
-    # Deterministic ordering helps tests and debugging
     return sorted(citations)
 
 
@@ -256,12 +272,10 @@ def _has_text(pdf_path: str, pages: int = 3) -> bool:
             n = min(len(doc), max(1, pages))
             for i in range(n):
                 txt = doc[i].get_text("text") or ""
-                # If there's enough non-whitespace, treat as text-present
                 if len(txt.strip()) >= 200:
                     return True
         return False
     except Exception:
-        # If we can't read it reliably, fall back to OCR path (safer)
         return False
 
 
@@ -287,7 +301,6 @@ def _ensure_ocr(pdf_path: str) -> str:
         shutil.copy(pdf_path, out_pdf)
         return out_pdf
 
-    # OCR path
     print("    🔍 Running OCR...")
     tmp = out_pdf + ".tmp.pdf"
     cmd = ["ocrmypdf", "--quiet", "--force-ocr", "--output-type", "pdf", pdf_path, tmp]
@@ -332,8 +345,7 @@ def _truncate_chunk(text: str, max_chars: int = MAX_CHUNK_CHARS) -> str:
     """Truncate chunk if it exceeds max length."""
     if len(text) <= max_chars:
         return text
-    truncated = text[:max_chars].rsplit(" ", 1)[0]
-    return truncated
+    return text[:max_chars].rsplit(" ", 1)[0]
 
 
 def _basket_from_path(path: str) -> str:
@@ -411,16 +423,17 @@ def build_index(data_dir=DATA, persist_dir=CHROMA, collection=COLL):
                 text = doc[page_idx].get_text("text")
                 if not text:
                     continue
+
                 sents = _split_sentences(text)
                 if not sents:
                     continue
+
                 for i, chunk in enumerate(_chunk_sentences(sents)):
                     chunk = _truncate_chunk(chunk)
                     if len(chunk) < 50:
                         skipped_chunks += 1
                         continue
 
-                    # Extract citations from this chunk
                     citations = _extract_citations(chunk)
                     if citations:
                         pdf_citations += len(citations)
